@@ -1,0 +1,28 @@
+{
+    "realm": "cosmic",
+    "enabled": true,
+    "registrationAllowed": true,
+    "loginWithEmailAllowed": true,
+    "resetPasswordAllowed": true,
+    "roles": {
+      "realm": [
+        { "name": "admin" },
+        { "name": "user" }
+      ]
+    },
+    "clients": [
+      {
+        "clientId": "cosmic-bff",
+        "name": "CoSMIC BFF",
+        "enabled": true,
+        "publicClient": false,
+        "clientAuthenticatorType": "client-secret",
+        "secret": "cosmic-bff-secret-dev",
+        "redirectUris": ["http://localhost:8081/api/v1/auth/callback"],
+        "webOrigins": ["http://localhost:5173", "http://localhost:8081", "+"],
+        "standardFlowEnabled": true,
+        "directAccessGrantsEnabled": false,
+        "protocol": "openid-connect"
+      }
+    ]
+  }
