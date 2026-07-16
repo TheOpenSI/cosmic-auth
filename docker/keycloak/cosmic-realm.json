@@ -12,12 +12,12 @@
     },
     "clients": [
       {
-        "clientId": "cosmic-bff",
-        "name": "CoSMIC BFF",
+        "clientId": "cosmic-fastapi-keycloak",
+        "name": "CoSMIC fastapi-keycloak",
         "enabled": true,
         "publicClient": false,
         "clientAuthenticatorType": "client-secret",
-        "secret": "cosmic-bff-secret-dev",
+        "secret": "cosmic-fastapi-keycloak-secret-dev",
         "redirectUris": ["http://localhost:8081/api/v1/auth/callback"],
         "webOrigins": ["http://localhost:5173", "http://localhost:8081", "+"],
         "standardFlowEnabled": true,

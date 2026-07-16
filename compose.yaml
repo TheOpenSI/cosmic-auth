@@ -96,13 +96,16 @@ services:
     restart: unless-stopped
     command: start-dev --import-realm
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
       KC_HOSTNAME: localhost
       KC_HOSTNAME_PORT: 8080
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
     volumes:
+      - type: volume
+        source: cosmic-keycloak-data
+        target: /opt/keycloak/data
       - type: bind
         source: ./docker/keycloak/cosmic-realm.json
         target: /opt/keycloak/data/import/cosmic-realm.json
@@ -111,6 +114,38 @@ services:
         target: 8080
         host_ip: 127.0.0.1
         published: "8080"
+        protocol: tcp
+        app_protocol: http
+        mode: host
+    networks:
+      - cosmic-backend
+  fastapi_keycloak:
+    container_name: cosmic-fastapi-keycloak
+    restart: unless-stopped
+    depends_on:
+      keycloak:
+        condition: service_started
+        required: true
+    build:
+      context: ./
+      dockerfile: ./docker/dockerfiles/fastapi-keycloak.Dockerfile
+    environment:
+      KEYCLOAK_INTERNAL_URL: http://cosmic-keycloak:8080
+      KEYCLOAK_PUBLIC_URL: http://localhost:8080
+      KEYCLOAK_REALM: cosmic
+      KEYCLOAK_CLIENT_ID: cosmic-fastapi-keycloak
+      KEYCLOAK_CLIENT_SECRET: cosmic-fastapi-keycloak-secret-dev
+      AUTH_PUBLIC_URL: http://localhost:8081
+      FRONTEND_URL: http://localhost:5173
+    volumes:
+      - type: bind
+        source: ./auth
+        target: /app/auth
+    ports:
+      - name: cosmic-fastapi-keycloak
+        target: 8081
+        host_ip: 127.0.0.1
+        published: "8081"
         protocol: tcp
         app_protocol: http
         mode: host
@@ -131,6 +166,10 @@ volumes:
   # container due to disadvantage of Docker Overlay2 (on prod only)
   cosmic-pgadmin-data:
     name: cosmic-database-gui
+
+  # NOTE: persists Keycloak users/sessions across compose down/up (dev)
+  cosmic-keycloak-data:
+    name: cosmic-keycloak-data
 
 
 networks:
