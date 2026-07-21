@@ -135,8 +135,13 @@ services:
       KEYCLOAK_REALM: cosmic
       KEYCLOAK_CLIENT_ID: cosmic-fastapi-keycloak
       KEYCLOAK_CLIENT_SECRET: cosmic-fastapi-keycloak-secret-dev
-      AUTH_PUBLIC_URL: http://localhost:8081
-      FRONTEND_URL: http://localhost:5173
+      AUTH_PUBLIC_URL: ${AUTH_PUBLIC_URL:-http://localhost:8081}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      ENABLED_PROVIDERS: ${ENABLED_PROVIDERS:-keycloak,google}
+      SESSION_SECRET: ${SESSION_SECRET}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-cosmic_session}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
     volumes:
       - type: bind
         source: ./auth
