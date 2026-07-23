@@ -98,6 +98,11 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+      KEYCLOAK_TEST_USER_EMAIL: ${KEYCLOAK_TEST_USER_EMAIL}
+      KEYCLOAK_TEST_USER_PASSWORD: ${KEYCLOAK_TEST_USER_PASSWORD}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      # Required for ${VAR} substitution to work in realm import JSON:
+      JAVA_OPTS_APPEND: "-Dkeycloak.migration.replace-placeholders=true"
       KC_HOSTNAME: localhost
       KC_HOSTNAME_PORT: 8080
       KC_HOSTNAME_STRICT: "false"
@@ -134,7 +139,7 @@ services:
       KEYCLOAK_PUBLIC_URL: http://localhost:8080
       KEYCLOAK_REALM: cosmic
       KEYCLOAK_CLIENT_ID: cosmic-fastapi-keycloak
-      KEYCLOAK_CLIENT_SECRET: cosmic-fastapi-keycloak-secret-dev
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
       AUTH_PUBLIC_URL: ${AUTH_PUBLIC_URL:-http://localhost:8081}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       ENABLED_PROVIDERS: ${ENABLED_PROVIDERS:-keycloak,google}

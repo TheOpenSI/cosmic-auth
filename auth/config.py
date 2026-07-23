@@ -23,9 +23,6 @@ REFRESH_TOKEN_COOKIE = "cosmic_refresh_token"
 OAUTH_STATE_COOKIE = "cosmic_oauth_state"
 OAUTH_PROVIDER_COOKIE = "cosmic_oauth_provider"
 
-# Old single callback (alias for Keycloak so current FE keeps working)
-AUTH_CALLBACK_URL = f"{AUTH_PUBLIC_URL}{AUTH_API_PREFIX}/callback"
-
 
 def callback_url(provider: str) -> str:
     """Per-provider callback — must match IdP console redirect URI."""
@@ -36,15 +33,15 @@ def callback_url(provider: str) -> str:
 KEYCLOAK_INTERNAL_URL = os.getenv("KEYCLOAK_INTERNAL_URL", "http://cosmic-keycloak:8080")
 KEYCLOAK_PUBLIC_URL = os.getenv("KEYCLOAK_PUBLIC_URL", "http://localhost:8080")
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "cosmic")
-KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "cosmic-fastapi-keycloak")
+KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID")
 KEYCLOAK_CLIENT_SECRET = os.getenv(
-    "KEYCLOAK_CLIENT_SECRET", "cosmic-fastapi-keycloak-secret-dev"
+    "KEYCLOAK_CLIENT_SECRET"
 )
 OIDC_ISSUER = f"{KEYCLOAK_PUBLIC_URL}/realms/{KEYCLOAK_REALM}"
 
 # ── Google ──────────────────────────────────────────────────────────────────
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_AUTH_URL = os.getenv(
     "GOOGLE_AUTH_URL", "https://accounts.google.com/o/oauth2/v2/auth"
 )

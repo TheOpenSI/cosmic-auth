@@ -1,28 +1,46 @@
 {
-    "realm": "cosmic",
-    "enabled": true,
-    "registrationAllowed": true,
-    "loginWithEmailAllowed": true,
-    "resetPasswordAllowed": true,
-    "roles": {
-      "realm": [
-        { "name": "admin" },
-        { "name": "user" }
-      ]
-    },
-    "clients": [
-      {
-        "clientId": "cosmic-fastapi-keycloak",
-        "name": "CoSMIC fastapi-keycloak",
-        "enabled": true,
-        "publicClient": false,
-        "clientAuthenticatorType": "client-secret",
-        "secret": "cosmic-fastapi-keycloak-secret-dev",
-        "redirectUris": ["http://localhost:8081/api/v1/auth/callback"],
-        "webOrigins": ["http://localhost:5173", "http://localhost:8081", "+"],
-        "standardFlowEnabled": true,
-        "directAccessGrantsEnabled": false,
-        "protocol": "openid-connect"
-      }
+  "realm": "cosmic",
+  "enabled": true,
+  "registrationAllowed": true,
+  "loginWithEmailAllowed": true,
+  "resetPasswordAllowed": true,
+  "roles": {
+    "realm": [
+      { "name": "admin" },
+      { "name": "user" }
     ]
-  }
+  },
+  "clients": [
+    {
+      "clientId": "cosmic-fastapi-keycloak",
+      "name": "CoSMIC fastapi-keycloak",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_CLIENT_SECRET}",
+      "redirectUris": ["http://localhost:8081/api/v1/auth/callback/keycloak"],
+      "webOrigins": ["http://localhost:5173", "http://localhost:8081", "+"],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "testuser",
+      "email": "${KEYCLOAK_TEST_USER_EMAIL}",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${KEYCLOAK_TEST_USER_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["user"]
+    }
+  ]
+}
