@@ -6,15 +6,24 @@ echo "==> Creating required directories..."
 mkdir -p docker/secrets
 mkdir -p docker/configs
 mkdir -p cores
+mkdir -p auth
 
 echo "==> Copying and preparing environment/configuration files..."
 
 # Backend service (.env)
-for file in examples/cosmic_*.example.env; do
+for file in examples/cosmic_cfg*.example.env; do
     [ -f "$file" ] || continue
     new_name=$(basename "$file" | sed 's/\.example//')
     cp "$file" "cores/$new_name"
     echo "Copied: $file -> cores/$new_name"
+done
+
+# Auth  (.env) → auth/
+for file in examples/cosmic_auth.example.env; do
+    [ -f "$file" ] || continue
+    new_name=$(basename "$file" | sed 's/\.example//')
+    cp "$file" "auth/$new_name"
+    echo "Copied: $file -> auth/$new_name"
 done
 
 # PostgreSQL (.txt)
@@ -40,6 +49,16 @@ for file in examples/pgadmin_*.example.json; do
     cp "$file" "docker/configs/$new_name"
     echo "Copied: $file -> docker/configs/$new_name"
 done
+
+# Keycloak secrets (.txt)
+for file in examples/keycloak_*.example.txt; do
+    [ -f "$file" ] || continue
+    new_name=$(basename "$file" | sed 's/\.example//')
+    cp "$file" "docker/secrets/$new_name"
+    echo "Copied: $file -> docker/secrets/$new_name"
+done
+
+
 
 echo "==> Setup complete!"
 echo "IMPORTANT:"

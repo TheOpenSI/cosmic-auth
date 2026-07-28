@@ -94,19 +94,33 @@ services:
     container_name: cosmic-keycloak
     image: quay.io/keycloak/keycloak:26.0
     restart: unless-stopped
-    command: start-dev --import-realm
+    secrets:
+      - source: cosmic-keycloak-admin-usr
+        target: keycloak_admin_usr.txt
+      - source: cosmic-keycloak-admin-pwd
+        target: keycloak_admin_pwd.txt
+      - source: cosmic-keycloak-client-secret
+        target: keycloak_client_secret.txt
+      - source: cosmic-keycloak-test-user-email
+        target: keycloak_test_user_email.txt
+      - source: cosmic-keycloak-test-user-pwd
+        target: keycloak_test_user_pwd.txt
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
-      KEYCLOAK_TEST_USER_EMAIL: ${KEYCLOAK_TEST_USER_EMAIL}
-      KEYCLOAK_TEST_USER_PASSWORD: ${KEYCLOAK_TEST_USER_PASSWORD}
-      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
-      # Required for ${VAR} substitution to work in realm import JSON:
       JAVA_OPTS_APPEND: "-Dkeycloak.migration.replace-placeholders=true"
       KC_HOSTNAME: localhost
       KC_HOSTNAME_PORT: 8080
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
+    # Image entrypoint is kc.sh; override so we can load secrets into env first
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        export KC_BOOTSTRAP_ADMIN_USERNAME="$$(tr -d '\r\n' < /run/secrets/keycloak_admin_usr.txt)"
+        export KC_BOOTSTRAP_ADMIN_PASSWORD="$$(tr -d '\r\n' < /run/secrets/keycloak_admin_pwd.txt)"
+        export KEYCLOAK_CLIENT_SECRET="$$(tr -d '\r\n' < /run/secrets/keycloak_client_secret.txt)"
+        export KEYCLOAK_TEST_USER_EMAIL="$$(tr -d '\r\n' < /run/secrets/keycloak_test_user_email.txt)"
+        export KEYCLOAK_TEST_USER_PASSWORD="$$(tr -d '\r\n' < /run/secrets/keycloak_test_user_pwd.txt)"
+        exec /opt/keycloak/bin/kc.sh start-dev --import-realm
     volumes:
       - type: volume
         source: cosmic-keycloak-data
@@ -187,6 +201,21 @@ secrets:
 
   cosmic-pgadmin-password:
     file: ./docker/secrets/pgadmin_pwd.txt
+
+  cosmic-keycloak-admin-usr:
+    file: ./docker/secrets/keycloak_admin_usr.txt
+
+  cosmic-keycloak-admin-pwd:
+    file: ./docker/secrets/keycloak_admin_pwd.txt
+
+  cosmic-keycloak-client-secret:
+    file: ./docker/secrets/keycloak_client_secret.txt
+
+  cosmic-keycloak-test-user-email:
+    file: ./docker/secrets/keycloak_test_user_email.txt
+
+  cosmic-keycloak-test-user-pwd:
+    file: ./docker/secrets/keycloak_test_user_pwd.txt
 
 
 configs:
