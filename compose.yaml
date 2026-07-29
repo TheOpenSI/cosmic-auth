@@ -87,6 +87,14 @@ services:
       - type: volume
         source: cosmic-pgadmin-data
         target: /var/lib/pgadmin
+    ports:
+      - name: cosmic-pgadmin
+        target: 80
+        host_ip: 127.0.0.1
+        published: "5050"
+        protocol: tcp
+        app_protocol: http
+        mode: host
     networks:
         - cosmic-backend
     
@@ -152,6 +160,15 @@ services:
       - type: bind
         source: ./auth
         target: /app/auth
+      - type: bind
+        source: ./apis
+        target: /app/apis
+      - type: bind
+        source: ./cores
+        target: /app/cores
+      - type: bind
+        source: ./types
+        target: /app/types
     ports:
       - name: cosmic-fastapi-keycloak
         target: 8081

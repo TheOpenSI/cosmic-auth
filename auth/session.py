@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import HTTPException, Request, Response
+from uuid import UUID
 
 from auth import config
 from auth.providers.base import NormalizedClaims
@@ -20,7 +21,7 @@ def _cookie_kwargs(max_age: int | None = None) -> dict:
     return kwargs
 
 
-def issue_session_token(claims: NormalizedClaims) -> str:
+def issue_session_token(claims: NormalizedClaims,user_id: UUID) -> str:
     """Build a Cosmic JWT from normalized IdP claims."""
     now = datetime.now(timezone.utc)
     payload = {
@@ -29,15 +30,15 @@ def issue_session_token(claims: NormalizedClaims) -> str:
         "name": claims.name,
         "roles": claims.roles,
         "provider": claims.provider,
-        # "user_id": ...  # Phase 3 — Postgres user id
+        "user_id": str(user_id),
         "iat": now,
         "exp": now + timedelta(seconds=config.SESSION_MAX_AGE),
     }
     return jwt.encode(payload, config.SESSION_SECRET, algorithm="HS256")
 
 
-def set_session_cookie(response: Response, claims: NormalizedClaims) -> None:
-    token = issue_session_token(claims)
+def set_session_cookie(response: Response, claims: NormalizedClaims,user_id: UUID) -> None:
+    token = issue_session_token(claims, user_id)
     response.set_cookie(
         config.SESSION_COOKIE_NAME,
         token,

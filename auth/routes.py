@@ -3,6 +3,8 @@ import secrets
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from cores.db import SessionDependency
+from auth.users_sync import ensure_user
 
 from auth import config
 from auth.providers import get_provider, list_enabled_providers
@@ -52,6 +54,7 @@ async def login_provider(provider: str) -> RedirectResponse:
 async def callback_provider(
     provider: str,
     request: Request,
+    session: SessionDependency,
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
@@ -72,6 +75,7 @@ async def callback_provider(
     redirect_uri = config.callback_url(provider)
     tokens = await idp.exchange_code(code, redirect_uri)
     claims = idp.normalize_claims(tokens)
+    user = ensure_user(session, claims)
     response = RedirectResponse(url=f"{config.FRONTEND_URL}/chat", status_code=302)
     response.delete_cookie(config.OAUTH_STATE_COOKIE, path="/")
     # keep provider cookie for logout routing (or re-set it below)
@@ -82,7 +86,7 @@ async def callback_provider(
         **_cookie_kwargs(),
     )
     # ★ Cosmic session (source of truth for /me)
-    cosmic_session.set_session_cookie(response, claims)
+    cosmic_session.set_session_cookie(response, claims, user.id)
     # Optional: keep refresh token for Keycloak revoke on logout
     if tokens.refresh_token:
         response.set_cookie(
@@ -118,6 +122,7 @@ async def logout(request: Request) -> RedirectResponse:
 async def me(request: Request) -> dict:
     payload = cosmic_session.read_session(request)
     return {
+        "user_id": payload.get("user_id"),
         "sub": payload.get("sub"),
         "email": payload.get("email"),
         "name": payload.get("name"),
