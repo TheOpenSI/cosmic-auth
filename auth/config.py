@@ -15,7 +15,7 @@ ENABLED_PROVIDERS = [
     if p.strip()
 ]
 
-SESSION_SECRET = cosmic_auth_configs.get("SESSION_SECRET", "dev-only-change-me")
+SESSION_SECRET = cosmic_auth_configs.get("SESSION_SECRET")
 SESSION_COOKIE_NAME = cosmic_auth_configs.get("SESSION_COOKIE_NAME", "cosmic_session")
 SESSION_MAX_AGE = int(cosmic_auth_configs.get("SESSION_MAX_AGE") or "86400")
 

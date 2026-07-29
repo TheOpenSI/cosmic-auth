@@ -1,21 +1,21 @@
 import secrets
 
-import jwt
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from auth import config
 from auth.providers import get_provider, list_enabled_providers
-from auth.providers.base import TokenBundle
 from auth import session as cosmic_session
 
 auth_router = APIRouter(prefix=config.AUTH_API_PREFIX, tags=["auth"])
 
 
 def _cookie_kwargs(max_age: int | None = None) -> dict:
+    secure = config.AUTH_PUBLIC_URL.startswith("https://")
     kwargs = {
         "httponly": True,
-        "secure": False,  # True in production (HTTPS)
+        "secure": secure,
         "samesite": "lax",
         "path": "/",
     }

@@ -47,8 +47,11 @@ class GoogleProvider:
             "code": code,
             "redirect_uri": redirect_uri,
         }
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(config.GOOGLE_TOKEN_URL, data=data)
+        try :
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(config.GOOGLE_TOKEN_URL, data=data)
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=502, detail=f"Google token exchange failed: {e}")
 
         if resp.status_code != 200:
             raise HTTPException(

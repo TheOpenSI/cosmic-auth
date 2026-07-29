@@ -8,9 +8,10 @@ from auth.providers.base import NormalizedClaims
 
 
 def _cookie_kwargs(max_age: int | None = None) -> dict:
+    secure = config.AUTH_PUBLIC_URL.startswith("https://")
     kwargs = {
         "httponly": True,
-        "secure": False,  # True in production (HTTPS)
+        "secure": secure,
         "samesite": "lax",
         "path": "/",
     }
@@ -59,6 +60,7 @@ def read_session(request: Request) -> dict:
             token,
             config.SESSION_SECRET,
             algorithms=["HS256"],
+            options={"require": ["exp","iat","sub"]}
         )
     except jwt.PyJWTError as exc:
         raise HTTPException(

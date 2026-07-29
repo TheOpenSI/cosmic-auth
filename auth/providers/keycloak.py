@@ -25,6 +25,8 @@ class KeycloakProvider:
     name = "keycloak"
 
     def authorize_url(self, state: str, redirect_uri: str) -> str:
+        if not config.KEYCLOAK_PUBLIC_URL:
+            raise ValueError( status_code=500, detail="KEYCLOAK_PUBLIC_URL is not set")
         params = {
             "client_id": config.KEYCLOAK_CLIENT_ID,
             "response_type": "code",
