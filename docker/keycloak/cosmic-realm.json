@@ -27,12 +27,12 @@
   ],
   "users": [
     {
-      "username": "testuser",
+      "username": "cosmic",
       "email": "${KEYCLOAK_TEST_USER_EMAIL}",
       "emailVerified": true,
       "enabled": true,
-      "firstName": "Test",
-      "lastName": "User",
+      "firstName": "OpenSI",
+      "lastName": "cosmic",
       "credentials": [
         {
           "type": "password",
@@ -40,7 +40,7 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["user"]
+      "realmRoles": ["admin"]
     }
   ]
 }
