@@ -6,11 +6,14 @@ COSMIC-DB/
 │   ├── data_models/        # Pydantic models for request validation and API responses
 │   ├── table_models/       # SQLModel ORM table definitions mapped to PostgreSQL database tables
 │   └── base_models.py      # SQLModel base classes inherited by both table and data models
+├── auth/                   # Auth BFF (login, callback, session, /me) for Keycloak and Google
+│   └── providers/          # Identity-provider adapters (Keycloak OIDC, Google OAuth)
 ├── bins/                   # Helper scripts, 3rd vendor binaries, etc
 ├── cores/                  # Central backend logic, database engines, and global configurations
 ├── docker/                 # Containerization resources and orchestration files
 │   ├── configs/            # Non-sensitive configuration files for Docker services
 │   ├── dockerfiles/        # Dockerfile for each services defined in Docker Compose file
+│   ├── keycloak/           # Keycloak realm export imported on first container start
 │   └── secrets/            # Secure storage for sensitive data like database credentials
 ├── examples/               # Template files and default values for rapid environment setup
 ├── migrations/             # Alembic database migration scripts and utilities
@@ -20,6 +23,7 @@ COSMIC-DB/
 ├── routers/                # CoSMIC BE API Endpoints (Interface)
 │   ├── api_endpoints/      # Requests to CoSMIC BE's API endpoints goes here
 │   └── normal_endpoints/   # Requests to CoSMIC BE's non-API endpoints goes here
+├── scripts/                # One-off helper scripts (e.g. data seeding)
 ├── types/                  # Shared type definitions used across the application
 │   └── api_responses/      # Pydantic response wrapper models returned to API clients
 ├── utils/                  # Helper functions and shared utility scripts
