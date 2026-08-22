@@ -21,7 +21,7 @@ class NormalizedClaims:
     roles: list[str] = field(default_factory=list)
 
 
-class OAuthProvider(Protocol):
+class Provider(Protocol):
     name: str
 
     def authorize_url(self, state: str, redirect_uri: str) -> str:
