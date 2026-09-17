@@ -6,11 +6,14 @@ COSMIC-DB/
 │   ├── data_models/        # Pydantic models for request validation and API responses
 │   ├── table_models/       # SQLModel ORM table definitions mapped to PostgreSQL database tables
 │   └── base_models.py      # SQLModel base classes inherited by both table and data models
+├── auth/                   # Auth BFF (login, callback, session, /me) for Keycloak and Google
+│   └── providers/          # Identity-provider adapters (Keycloak OIDC, Google OAuth)
 ├── bins/                   # Helper scripts, 3rd vendor binaries, etc
 ├── cores/                  # Central backend logic, database engines, and global configurations
 ├── docker/                 # Containerization resources and orchestration files
 │   ├── configs/            # Non-sensitive configuration files for Docker services
 │   ├── dockerfiles/        # Dockerfile for each services defined in Docker Compose file
+│   ├── keycloak/           # Keycloak realm export imported on first container start
 │   └── secrets/            # Secure storage for sensitive data like database credentials
 ├── examples/               # Template files and default values for rapid environment setup
 ├── migrations/             # Alembic database migration scripts and utilities
@@ -20,6 +23,7 @@ COSMIC-DB/
 ├── routers/                # CoSMIC BE API Endpoints (Interface)
 │   ├── api_endpoints/      # Requests to CoSMIC BE's API endpoints goes here
 │   └── normal_endpoints/   # Requests to CoSMIC BE's non-API endpoints goes here
+├── scripts/                # One-off helper scripts (e.g. data seeding)
 ├── types/                  # Shared type definitions used across the application
 │   └── api_responses/      # Pydantic response wrapper models returned to API clients
 ├── utils/                  # Helper functions and shared utility scripts
@@ -137,6 +141,12 @@ Then, copy the following files from the `examples/` directory to the following l
 - `examples/pgadmin_*.example.txt` &rarr; `docker/secrets/pgadmin_*.txt` (contains pgAdmin credentials and authentication files).
 - `examples/pgadmin_*.example.json` &rarr; `docker/configs/pgadmin_*.json` (contains pgAdmin server definitions and non-sensitive configuration).
 
+4. **Auth service**:
+- `examples/cosmic_auth.example.env` &rarr; `auth/cosmic_auth.env` (contains Keycloak, Google OAuth, and session settings). See [Configuring Authentication Credentials](#0-configuring-authentication-credentials).
+
+5. **Keycloak service**:
+- `examples/keycloak_*.example.txt` &rarr; `docker/secrets/keycloak_*.txt` (contains Keycloak admin credentials, the confidential client secret, and the seeded test user).
+
 > [!TIP]
 > Before finalising these files, review and adjust default values (Keep default setting if you're unsure about whether or not to modify it):
 > - Password
@@ -216,7 +226,7 @@ Before you begin, ensure you have **Docker** & **Docker Compose** installed on y
 
 ### **1. Starting Docker Services**
 
-From the project root directory, ensure you've completed the steps in the [Docker Configuration](#docker-configuration) section above. Then start all the service using the Docker Compose file:
+From the project root directory, ensure you've completed the steps in the [Docker Configuration](#docker-configuration) section above, including [Configuring Authentication Credentials](#0-configuring-authentication-credentials). Set Google, Keycloak, and session values **before** the first `docker compose up` so Keycloak imports a matching client secret. Then start all the service using the Docker Compose file:
 
 ```bash
 # Linux/MacOS
@@ -274,6 +284,97 @@ py --version
 uv --version
 psql --version
 ```
+
+### **0. Configuring Authentication Credentials**
+
+After running `./bins/setup.sh` (Linux/MacOS) or `.\bins\setup.ps1` (Windows), the setup script copies example files into:
+
+- `auth/cosmic_auth.env` &mdash; Keycloak, Google OAuth, and session settings used by the backend
+- `docker/secrets/keycloak_client_secret.txt` &mdash; the same Keycloak confidential-client secret, mounted into the Keycloak container
+
+Open `auth/cosmic_auth.env` and replace the defaults below. Do **not** commit real credentials.
+
+> [!IMPORTANT]
+> `KEYCLOAK_CLIENT_SECRET` in `auth/cosmic_auth.env` **must be identical** to the value in `docker/secrets/keycloak_client_secret.txt`. If they differ, Keycloak login will fail because the backend and Keycloak will not share the same client secret. The secrets file must contain **only** the secret string (no quotes, no `KEYCLOAK_CLIENT_SECRET=` prefix, no extra spaces).
+
+#### **Google OAuth credentials**
+
+Each developer must create **their own** Google OAuth client. Do not reuse another developer's `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
+
+1. Open the [Google Cloud Console](https://console.developers.google.com/) and create or select a project.
+2. Go to **APIs & Services** &rarr; **OAuth consent screen**, complete the consent screen if prompted (External is fine for local development).
+3. Go to **APIs & Services** &rarr; **Credentials** &rarr; **Create credentials** &rarr; **OAuth client ID**.
+4. Set **Application type** to **Web application**.
+5. Under **Authorised redirect URIs**, add:
+
+```txt
+http://localhost:8081/api/v1/auth/callback/google
+```
+
+6. Optionally add **Authorised JavaScript origins**:
+
+```txt
+http://localhost:5173
+http://localhost:8081
+```
+
+7. Create the client, then copy **Client ID** and **Client secret** into `auth/cosmic_auth.env`:
+
+```txt
+GOOGLE_CLIENT_ID=<your-google-client-id>.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=<your-google-client-secret>
+```
+
+Leave `GOOGLE_AUTH_URL`, `GOOGLE_TOKEN_URL`, `GOOGLE_JWKS_URL`, and `GOOGLE_ISSUER` at their default Google endpoints unless you know you need to change them.
+
+> [!NOTE]
+> The redirect URI must match `AUTH_PUBLIC_URL` plus `/api/v1/auth/callback/google`. The default public auth URL is `http://localhost:8081`. If you change `AUTH_PUBLIC_URL`, update the Google Console redirect URI to match.
+
+#### **Keycloak client secret**
+
+The default `KEYCLOAK_CLIENT_SECRET` is only a local example. You may keep it for a first run, but we recommend replacing it with a unique value.
+
+Generate a unique secret:
+
+```bash
+# Linux/MacOS
+uuidgen
+```
+```ps1
+# Windows
+[guid]::NewGuid().ToString()
+```
+
+Put **the same value** in both places:
+
+1. `auth/cosmic_auth.env`:
+
+```txt
+KEYCLOAK_CLIENT_SECRET=<your-unique-secret>
+```
+
+2. `docker/secrets/keycloak_client_secret.txt` (secret only, one line):
+
+```txt
+<your-unique-secret>
+```
+
+> [!TIP]
+> Set this **before** the first Keycloak start. Keycloak imports `docker/keycloak/cosmic-realm.json` on first boot and substitutes `${KEYCLOAK_CLIENT_SECRET}` from `docker/secrets/keycloak_client_secret.txt`. If you change the secret later, also update the client secret in the Keycloak admin console (**Clients** &rarr; `cosmic-fastapi-keycloak` &rarr; **Credentials**), or remove the Keycloak volume and start again so the realm is re-imported.
+
+You can leave `KEYCLOAK_CLIENT_ID=cosmic-fastapi-keycloak` and the Keycloak URLs/realm defaults unless you have changed those in the realm export.
+
+#### **Session secret**
+
+`SESSION_SECRET` signs the Cosmic session cookie. You can keep the example value for local development, or replace it with your own unique string (recommended, same `uuidgen` / `[guid]::NewGuid()` approach as above):
+
+```txt
+SESSION_SECRET=<your-unique-session-secret>
+SESSION_COOKIE_NAME=cosmic_session
+SESSION_MAX_AGE=86400
+```
+
+Changing `SESSION_SECRET` invalidates existing session cookies (users will need to log in again). `SESSION_COOKIE_NAME` and `SESSION_MAX_AGE` can stay at the defaults unless you have a reason to change them.
 
 ### **1. Installing Dependencies**
 
