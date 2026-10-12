@@ -1,103 +1,6 @@
 name: OpenSI-CoSMIC
 
-
 services:
-  backend:
-    container_name: cosmic-backend-fastapi
-    depends_on:
-      database:
-        restart: true
-        condition: service_started
-        required: true
-    restart: unless-stopped
-    build:
-      context: ./
-      dockerfile: ./docker/dockerfiles/fastapi.Dockerfile
-    # NOTE:
-    # Live mounting for auto reload on dev only. Remove it and the
-    # corresponding top-level volume on prod.
-    volumes:
-      - type: bind
-        source: ./
-        target: /app
-        # NOTE:
-        # This makes `.venv` directory container-native at runtime and not
-        # trying to bypass the ignore at build time. This's very important when
-        # you do the development in Windows.
-      - type: volume
-        source: cosmic-backend-fastapi-venv
-        target: /app/.venv
-    # NOTE: For quick debugging (on dev only)
-    ports:
-      - name: cosmic-backend-fastapi-uvicorn
-        target: 8000
-        host_ip: 127.0.0.1
-        published: "8000"
-        protocol: tcp
-        app_protocol: http
-        mode: host
-    networks:
-        - cosmic-backend
-
-
-  database:
-    container_name: cosmic-postgres
-    restart: unless-stopped
-    # Set shared memory limit when using docker compose
-    shm_size: 128mb
-    secrets:
-      - source: cosmic-postgres-user
-        target: usr.txt
-      - source: cosmic-postgres-database
-        target: db.txt
-      - source: cosmic-postgres-password
-        target: pwd.txt
-    environment:
-        POSTGRES_USER_FILE: /run/secrets/usr.txt
-        POSTGRES_DB_FILE: /run/secrets/db.txt
-        POSTGRES_PASSWORD_FILE: /run/secrets/pwd.txt
-    build:
-      context: ./
-      dockerfile: ./docker/dockerfiles/postgres.Dockerfile
-    volumes:
-      - type: volume
-        source: cosmic-postgres-data
-        target: /var/lib/postgresql
-    networks:
-        - cosmic-backend
-
-
-  database-gui:
-    container_name: cosmic-pgadmin
-    restart: unless-stopped
-    secrets:
-      - source: cosmic-pgadmin-password
-        target: pwd.txt
-    environment:
-        # NOTE: Make sure to enable 2FA for this account on prod
-        PGADMIN_DEFAULT_EMAIL: opensi@canberra.edu.au
-        PGADMIN_DEFAULT_PASSWORD_FILE: /run/secrets/pwd.txt
-    configs:
-      - source: cosmic-pgadmin-server
-        target: /pgadmin4/servers.json
-    build:
-      context: ./
-      dockerfile: ./docker/dockerfiles/pgadmin.Dockerfile
-    volumes:
-      - type: volume
-        source: cosmic-pgadmin-data
-        target: /var/lib/pgadmin
-    ports:
-      - name: cosmic-pgadmin
-        target: 80
-        host_ip: 127.0.0.1
-        published: "5050"
-        protocol: tcp
-        app_protocol: http
-        mode: host
-    networks:
-        - cosmic-backend
-
   keycloak:
     container_name: cosmic-keycloak
     image: quay.io/keycloak/keycloak:26.0
@@ -204,44 +107,16 @@ services:
       - cosmic-backend
 
 volumes:
-  # NOTE: as explained above, define this only in dev (delete on prod).
-  cosmic-backend-fastapi-venv:
-    name: cosmic-backend-ignore
-
-  # NOTE: data will be stored from the hosting machine rather than inside
-  # container due to disadvantage of Docker Overlay2 (on prod only)
-  cosmic-postgres-data:
-    name: cosmic-database-relational
-
-  # NOTE: data will be stored from the hosting machine rather than inside
-  # container due to disadvantage of Docker Overlay2 (on prod only)
-  cosmic-pgadmin-data:
-    name: cosmic-database-gui
-
   # NOTE: persists Keycloak users/sessions across compose down/up (dev)
   cosmic-keycloak-data:
     name: cosmic-keycloak-data
 
-
 networks:
   cosmic-backend:
     name: cosmic_net
-    driver: bridge
-
+    external: true
 
 secrets:
-  cosmic-postgres-user:
-    file: ./docker/secrets/postgres_usr.txt
-
-  cosmic-postgres-database:
-    file: ./docker/secrets/postgres_db.txt
-
-  cosmic-postgres-password:
-    file: ./docker/secrets/postgres_pwd.txt
-
-  cosmic-pgadmin-password:
-    file: ./docker/secrets/pgadmin_pwd.txt
-
   cosmic-keycloak-admin-usr:
     file: ./docker/secrets/keycloak_admin_usr.txt
 
@@ -259,7 +134,7 @@ secrets:
 
   cosmic-keycloak-smtp-user:
     file: ./docker/secrets/keycloak_smtp_user.txt
-    
+
   cosmic-keycloak-smtp-pwd:
     file: ./docker/secrets/keycloak_smtp_pwd.txt
 
@@ -277,8 +152,3 @@ secrets:
 
   cosmic-keycloak-microsoft-tenant-id:
     file: ./docker/secrets/keycloak_microsoft_tenant_id.txt
-
-
-configs:
-  cosmic-pgadmin-server:
-    file: ./docker/configs/pgadmin_svr.json

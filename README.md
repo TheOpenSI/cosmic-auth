@@ -1,45 +1,56 @@
 <h1 align="center">Directory Hierarchy</h1>
 
 ```md
-COSMIC-DB/
-├── apis/                   # CoSMIC BE API Endpoints (Implementation)
-│   ├── data_models/        # Pydantic models for request validation and API responses
+COSMIC-AUTH/
+├── apis/                   # Shared SQLModel ORM table definitions (users / roles / user_identities)
 │   ├── table_models/       # SQLModel ORM table definitions mapped to PostgreSQL database tables
-│   └── base_models.py      # SQLModel base classes inherited by both table and data models
-├── auth/                   # Auth BFF Framework
-├── bins/                   # Helper scripts, 3rd vendor binaries, etc
-├── cores/                  # Central backend logic, database engines, and global configurations
+│   └── base_models.py      # SQLModel base classes inherited by the table models
+├── auth/                   # Auth BFF Framework (Authlib → Keycloak; session, /me, JWKS)
+│   ├── claims.py           # IdP user info mapped to one Cosmic claim shape
+│   ├── config.py           # BFF framework, CoSMIC session and Keycloak settings
+│   ├── env.py              # Reads `auth/cosmic_auth.env`
+│   ├── keys.py             # RS256 session key-pair loading + public JWKS
+│   ├── oauth.py            # Authlib OAuth2/OIDC client registry (Keycloak only)
+│   ├── session.py          # CoSMIC session cookie (joserfc, RS256)
+│   └── users_sync.py       # Upserts `users` / `user_identities` on login
+├── bins/                   # Setup and RS256 key-generation helper scripts
+├── cores/                  # Database engine and environment loading for the shared PostgreSQL
 ├── docker/                 # Containerization resources and orchestration files
-│   ├── configs/            # Non-sensitive configuration files for Docker services
-│   ├── dockerfiles/        # Dockerfile for each services defined in Docker Compose file
+│   ├── dockerfiles/        # Dockerfile for the Auth service
 │   ├── keycloak/           # Keycloak realm export imported on first container start
-│   └── secrets/            # Secure storage for sensitive data like database credentials
+│   └── secrets/            # RS256 session key-pair + Keycloak credentials (gitignored)
 ├── examples/               # Template files and default values for rapid environment setup
-├── migrations/             # Alembic database migration scripts and utilities
-│   ├── utils/              # Shell scripts for running migrations automatically on container startup
-│   ├── versions/           # Versioned Alembic migration files for schema creation and data pre-population
-│   └── README              # Alembic-generated readme describing the migration configuration
-├── routers/                # CoSMIC BE API Endpoints (Interface)
-│   ├── api_endpoints/      # Requests to CoSMIC BE's API endpoints goes here
-│   └── normal_endpoints/   # Requests to CoSMIC BE's non-API endpoints goes here
-├── scripts/                # One-off helper scripts (e.g. data seeding)
 ├── types/                  # Shared type definitions used across the application
-│   └── api_responses/      # Pydantic response wrapper models returned to API clients
-├── utils/                  # Helper functions and shared utility scripts
 ├── .dockerignore           # Files excluded from Docker builds
 ├── .gitattributes          # Git configuration for path attributes
 ├── .gitignore              # Files excluded from version control
-├── .python-version         # Pinned Python version for the project (benefical to `uv` only)
+├── .python-version         # Pinned Python version for the project (beneficial to `uv` only)
 ├── CONTRIBUTING            # Guidelines for project contributors
 ├── LICENSE                 # Project licensing information (MIT)
 ├── README.md               # This's what you're seeing right now
 ├── __init__.py             # Package initialisation (mainly for relative import usages)
-├── alembic.ini             # Alembic configuration file defining migration script location and logging
-├── compose.yaml            # Docker Compose specification for orchestrating all BE-only services
-├── main.py                 # Primary entry point for FastAPI application
+├── compose.yaml            # Docker Compose specification for the Auth + Keycloak services
+├── main.py                 # Primary entry point re-exporting the Auth BFF application
 ├── pyproject.toml          # Project metadata and dependency definitions
 └── uv.lock                 # Pinned dependency lockfile via `uv`
 ```
+
+---
+# Relationship to `cosmic-db`
+
+This repository is **not** the owner of the CoSMIC PostgreSQL schema. It connects to the *same* database as `cosmic-db` and carries a copy of the three tables the Auth BFF reads/writes (`users`, `roles`, `user_identities`), so it can be deployed and reasoned about on its own.
+
+- `cosmic-db` remains the owner of the shared schema and its Alembic migrations. This repository therefore ships **no** `migrations/` and no `alembic.ini`.
+- Both repositories attach to the same `cosmic_net` Docker network; this repository declares that network as `external: true`, so start `cosmic-db` (`docker compose up -d database`) at least once before starting this one.
+- The Auth service listens on port `8081` and publishes the RS256 JWKS at `http://localhost:8081/api/v1/auth/jwks.json` for the other services.
+
+> [!IMPORTANT]
+> This repository runs **no** PostgreSQL of its own. `bins/setup.ps1` /
+> `bins/setup.sh` copies `examples/postgres_*.example.txt` to
+> `docker/secrets/postgres_*.txt` and then reconciles `DB_USER`, `DB_PASSWORD`
+> and `DB_NAME` in `cores/cosmic_cfg.env` with those secrets. Keep that secret
+> file identical to the one `cosmic-db` runs — if they differ, logins fail with
+> `FATAL: password authentication failed for user ...`.
 
 ---
 # Quick Start
@@ -50,57 +61,55 @@ Before setting up, decide which one is the correct purpose when you get to this 
 > The rest of this guide covers **Purpose 1**. For **Purpose 2**, refer to the
 > setup instructions in [cosmic-docker repository](https://github.com/TheOpenSI/cosmic-docker)
 
-1. **Module-only**: you are working on this part of the project in isolation (e.g., only CoSMIC BE).
-2. **Full-stack**: you need an end-to-end test run across all services (**Front-end** &rarr; **Back-end** &rarr; **CoSMIC**).
+1. **Module-only**: you are working on this part of the project in isolation (e.g., only CoSMIC Auth + Keycloak).
+2. **Full-stack**: you need an end-to-end test run across all services (**Front-end** &rarr; **Back-end** &rarr; **Auth** &rarr; **CoSMIC**).
 
 Next, ensure you have the appropriate tools installed depending on your chosen execution method. This guide supports:
 
-- **Native setup** (running **CoSMIC BE** directly on your machine)
-- **Docker setup** (running **CoSMIC BE** in isolated containers)
+- **Native setup** (running **CoSMIC Auth** directly on your machine)
+- **Docker setup** (running **CoSMIC Auth** in isolated containers)
 
 
-| **Tool**   | **Docker Setup**                       | **Native Setup**                               |
-| ---------- | -------------------------------------- | ---------------------------------------------- |
-| Docker     | $\textcolor{green}{\text{Mandatory}}$  | $\textcolor{red}{\text{Not required}}$         |
-| Python     | $\textcolor{red}{\text{Not required}}$ | $\textcolor{green}{\text{Mandatory (v3.14+)}}$ |
-| uv         | $\textcolor{red}{\text{Not required}}$ | $\textcolor{green}{\text{Mandatory (latest)}}$ |
-| PostgreSQL | $\textcolor{red}{\text{Not required}}$ | $\textcolor{green}{\text{Mandatory (v18+)}}$   |
-| pgAdmin    | $\textcolor{red}{\text{Not required}}$ | $\textcolor{yellow}{\text{Optional}}$          |
+| **Tool** | **Docker Setup**                       | **Native Setup**                               |
+| -------- | -------------------------------------- | ---------------------------------------------- |
+| Docker   | $\textcolor{green}{\text{Mandatory}}$  | $\textcolor{red}{\text{Not required}}$         |
+| Python   | $\textcolor{red}{\text{Not required}}$ | $\textcolor{green}{\text{Mandatory (v3.14+)}}$ |
+| uv       | $\textcolor{red}{\text{Not required}}$ | $\textcolor{green}{\text{Mandatory (latest)}}$ |
 
 
 Then, start by cloning the repository using your preferred method:
 
 ```bash
 # Linux/MacOS
-git clone https://github.com/TheOpenSI/CoSMIC_DB.git    # Using HTTPS (recommended for most users)
-git clone git@github.com:TheOpenSI/CoSMIC_DB.git        # Using SSH (recommended if you've SSH keys configured)
+git clone https://github.com/TheOpenSI/cosmic-auth.git    # Using HTTPS (recommended for most users)
+git clone git@github.com:TheOpenSI/cosmic-auth.git        # Using SSH (recommended if you've SSH keys configured)
 ```
 ```ps1
 # Windows
-git clone https://github.com/TheOpenSI/CoSMIC_DB.git    # Using HTTPS (recommended for most users)
-git clone git@github.com:TheOpenSI/CoSMIC_DB.git        # Using SSH (recommended if you've SSH keys configured)
+git clone https://github.com/TheOpenSI/cosmic-auth.git    # Using HTTPS (recommended for most users)
+git clone git@github.com:TheOpenSI/cosmic-auth.git        # Using SSH (recommended if you've SSH keys configured)
 ```
 
 Once cloned, navigate to the project root directory:
 
 ```bash
 # Linux/MacOS
-cd CoSMIC_DB/
+cd cosmic-auth/
 ```
 ```ps1
 # Windows
-Set-Location CoSMIC_DB\
+Set-Location cosmic-auth\
 ```
 
 ---
 # Understanding Configuration Setup
 
-Our backend expects configuration files to be organised in specific locations depending on your chosen setup method. Understanding this structure will help you prepare the environment correctly.
+The Auth service expects configuration files to be organised in specific locations depending on your chosen setup method. Understanding this structure will help you prepare the environment correctly.
 
 > [!TIP]
 > You can follow the instructions below to understand what these 2 scripts will
 > do, or simply run it to automatically configure your environment for running
-> database micro-service as a Docker container.
+> the Auth micro-service as a Docker container.
 
 ```bash
 # Linux/MacOS
@@ -108,7 +117,7 @@ Our backend expects configuration files to be organised in specific locations de
 ```
 ```ps1
 # Windows
-.\bins\Setup.ps1
+.\bins\setup.ps1
 ```
 
 ## Docker Configuration
@@ -117,12 +126,11 @@ Create the necessary directories first:
 
 ```bash
 # Linux/MacOS
-mkdir -p docker/{secrets,configs}
+mkdir -p docker/{secrets}
 ```
 ```ps1
 # Windows
 New-Item -Type Directory -Name secrets -Path .\docker\
-New-Item -Type Directory -Name configs -Path .\docker\
 ```
 
 Then, copy the following files from the `examples/` directory to the following location:
@@ -130,21 +138,15 @@ Then, copy the following files from the `examples/` directory to the following l
 > [!IMPORTANT]
 > Remove `.example` suffix from each filename.
 
-1. **Backend service**:
-- `examples/cosmic_*.example.env` &rarr; `cores/cosmic_*.env` (contains core application environment variables).
+1. **Shared database service**:
+- `examples/cosmic_cfg.example.env` &rarr; `cores/cosmic_cfg.env` (PostgreSQL connection settings — must point at the database of `cosmic-db`).
+- `examples/postgres_*.example.txt` &rarr; `docker/secrets/postgres_*.txt` (the credentials of that same database — `bins/setup.*` keeps `DB_USER`/`DB_PASSWORD`/`DB_NAME` in `cores/cosmic_cfg.env` reconciled with them).
 
-2. **PostgreSQL service**:
-- `examples/postgres_*.example.txt` &rarr; `docker/secrets/postgres_*.txt` (contains PostgreSQL database credentials and configuration files).
-
-3. **pgAdmin service**:
-- `examples/pgadmin_*.example.txt` &rarr; `docker/secrets/pgadmin_*.txt` (contains pgAdmin credentials and authentication files).
-- `examples/pgadmin_*.example.json` &rarr; `docker/configs/pgadmin_*.json` (contains pgAdmin server definitions and non-sensitive configuration).
-
-4. **Auth service**:
+2. **Auth service**:
 - `examples/cosmic_auth.example.env` &rarr; `auth/cosmic_auth.env` (contains Keycloak, Authlib session, and RS256 session-key settings. See [Configure Authentication Credentials](#configure-authentication-credentials) for more details).
-- Generate the RS256 session keypair used to sign the CoSMIC session cookie using either `.\bins\Setup.ps1` (Windows) or `./bins/setup.sh` (Linux/macOS).
+- Generate the RS256 session keypair used to sign the CoSMIC session cookie using either `.\bins\setup.ps1` (Windows) or `./bins/setup.sh` (Linux/macOS).
 
-5. **Keycloak service**:
+3. **Keycloak service**:
 - `examples/keycloak_*.example.txt` &rarr; `docker/secrets/keycloak_*.txt` (contains Keycloak admin credentials, the confidential client secret, the seeded test user, and the Google/Microsoft client credentials brokered by Keycloak).
 
 > [!TIP]
@@ -161,47 +163,22 @@ Then, copy the following files from the `examples/` directory to the following l
 > organised and prevents accidentally committing secrets to version control.
 > Make sure to add `.env` to your `.gitignore` file.
 
-### **Option 1: Create a `.env` file in the `cores/` directory**
-
-First, copy the `examples/cosmic_*.example.env` file to the correct location:
-
-```bash
- # Linux/MacOS
-cp ../examples/cosmic_*.example.env ./cores/cosmic_*.env
-```
-```ps1
-# Windows
-Copy-Item -Path ..\examples\cosmic_*.example.env -Destination .\cores\cosmic_*.env
-```
-
-Then, edit the `cores/cosmic_*.env` file to set your desired configuration values.
-
-### **Option 2: Set environment variables directly in your shell**
-
-Alternatively, export variables directly before running the application:
+Copy the example environment files to their runtime locations:
 
 ```bash
 # Linux/MacOS
-export DB_DIALECT=postgresql
-export DB_DRIVER=psycopg
-export DB_USER=postgres
-export DB_PASSWORD=""
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_NAME=postgres
-export OPENAI_API_KEY=
+cp ./examples/cosmic_cfg.example.env ./cores/cosmic_cfg.env
+cp ./examples/cosmic_auth.example.env ./auth/cosmic_auth.env
 ```
 ```ps1
 # Windows
-$env:DB_DIALECT="postgresql"
-$env:DB_DRIVER="psycopg"
-$env:DB_USER="postgres"
-$env:DB_PASSWORD=""
-$env:DB_HOST="localhost"
-$env:DB_PORT="5432"
-$env:DB_NAME="postgres"
-$env:OPENAI_API_KEY=
+Copy-Item -Path .\examples\cosmic_cfg.example.env -Destination .\cores\cosmic_cfg.env
+Copy-Item -Path .\examples\cosmic_auth.example.env -Destination .\auth\cosmic_auth.env
 ```
+
+Then, edit the `cores/cosmic_cfg.env` file to point at your local PostgreSQL
+instance (the `## Native setup` block in that file lists the usual values) and
+generate the RS256 session key-pair with `bins/setup.*`.
 
 ---
 # Setup & Execution
@@ -224,9 +201,23 @@ Before you begin, ensure you have **Docker** & **Docker Compose** installed on y
 1. [**Docker**](https://docs.docker.com/get-docker/)
 2. [**Docker Compose**](https://docs.docker.com/compose/install/)
 
-### **1. Starting Docker Services**
+### **1. Starting The Shared Database**
 
-From the project root directory, ensure you've completed the steps in the [Docker Configuration](#docker-configuration) section above, including [Configuring Authentication Credentials](#0-configuring-authentication-credentials). Set the Keycloak client secret, the Google/Microsoft broker credentials, and session values **before** the first `docker compose up` so Keycloak imports a matching client secret. Then start all the service using the Docker Compose file:
+This repository attaches to the `cosmic_net` network owned by `cosmic-db`. Start
+its database at least once so the network and the shared schema exist:
+
+```bash
+# Linux/MacOS
+cd ../cosmic-db && docker compose up -d database
+```
+```ps1
+# Windows
+Set-Location ..\cosmic-db; docker compose up -d database
+```
+
+### **2. Starting Docker Services**
+
+From the project root directory, ensure you've completed the steps in the [Docker Configuration](#docker-configuration) section above, including [Configuring Authentication Credentials](#configure-authentication-credentials). Set the Keycloak client secret, the Google/Microsoft broker credentials, and session values **before** the first `docker compose up` so Keycloak imports a matching client secret. Then start all the service using the Docker Compose file:
 
 ```bash
 # Linux/MacOS
@@ -237,57 +228,55 @@ docker compose up --build -d # Refer to NOTE if running on rootless mode
 docker compose up --build -d # Docker run through lightweight Linux VM on Windows so it's rootless by default
 ```
 
-### **2. Verifying Docker Services**
+### **3. Verifying Docker Services**
 
 Once the containers are running, you can verify that all services are working correctly by these way:
 
-1. **FastAPI**: [localhost:3000/docs](http://localhost:3000/docs)
-2. **pgAdmin**: [localhost:5050](http://localhost:5050) **(use credentials from `docker/secrets/pgadmin_*.txt`, and `PGADMIN_DEFAULT_EMAIL` environment value in compose file)**
-3. **PostgreSQL**:
-- We disabled direct access by default as this's totally viewable from **pgAdmin**. However, you can still do it by typing this in your terminal:
+1. **Auth (FastAPI)**: [localhost:8081/docs](http://localhost:8081/docs)
+2. **JWKS published to the other services**: [localhost:8081/api/v1/auth/jwks.json](http://localhost:8081/api/v1/auth/jwks.json)
+3. **Keycloak**: [localhost:8080](http://localhost:8080) **(use credentials from `docker/secrets/keycloak_admin_*.txt`)**
+4. **Shared PostgreSQL**:
+- We disabled direct access by default as this's totally viewable from **pgAdmin** in `cosmic-db`. However, you can still do it by typing this in your terminal:
 
 ```bash
 # Linux/MacOS
-docker exec cosmic-postgres psql -U demo # Refer to NOTE if running on rootless mode
+docker exec cosmic-postgres psql -U <DB_USER> # Refer to NOTE if running on rootless mode
 ```
 ```ps1
 # Windows
-docker exec cosmic-postgres psql -U demo # Docker run through lightweight Linux VM on Windows so it's rootless by default
+docker exec cosmic-postgres psql -U <DB_USER> # Docker run through lightweight Linux VM on Windows so it's rootless by default
 ```
 
 or go to **Docker Desktop**, search for `cosmic-postgres` service under `opensi-cosmic` top-level service, click on it then click on **Terminal** icon on the near top right corner.
 
-If the connection is successful, you'll see the PostgreSQL prompt, which looks like this:
-
-```
-psql (18.3)
-Type "help" for help.
-
-postgres=#
-```
-
-The version number and exact format may vary depending on your PostgreSQL installation, but the prompt indicates a successful connection.
-
 ## Native Setup
 
-Before you begin, ensure you have `python (v3.14+)`, `uv`, and `PostgreSQL (v18+)` running on your system:
+> [!IMPORTANT]
+> The BFF imports its shared modules as `app.*` (e.g. `from app.types.tags import APITag`).
+> Inside the container that resolves because `WORKDIR /app` + `PYTHONPATH=/` make
+> this repository the `app` package. To run natively, expose the repository under
+> a package name `app` before starting the server:
 
 ```bash
-# Linux/MacOS
-python --version
-uv --version
-psql --version
+# Linux/MacOS (run from the directory CONTAINING this repository)
+ln -s cosmic-auth app
+export PYTHONPATH="$PWD:$PWD/app"
+uv run --project cosmic-auth fastapi dev --entrypoint auth.main:cosmic_auth_app --port 8081
 ```
 ```ps1
-# Windows
-py --version
-uv --version
-psql --version
+# Windows (run from the directory CONTAINING this repository)
+New-Item -ItemType Junction -Path .\app -Target .\cosmic-auth
+$env:PYTHONPATH = "$PWD;$PWD\app"
+uv run --project cosmic-auth fastapi dev --entrypoint auth.main:cosmic_auth_app --port 8081
 ```
+
+> [!NOTE]
+> Rewriting those shared imports is planned as part of the repository
+> customisation work, after which the package alias will no longer be needed.
 
 ### **1. Installing Dependencies**
 
-Our backend uses **Python (v3.14+)** with the `uv` package manager for dependency management. Once **PostgreSQL (v18+)** is running and you're in the project root directory (`CoSMIC_DB/`), install the project's Python dependencies:
+Our service uses **Python (v3.14+)** with the `uv` package manager for dependency management. Once the configuration files are in place and you're in the project root directory (`cosmic-auth/`), install the project's dependencies:
 
 ```bash
 # Linux/MacOS
@@ -298,75 +287,38 @@ uv sync --frozen --no-cache
 uv sync --frozen --no-cache
 ```
 
-### **2. Starting Backend Server**
+### **2. Starting Auth Server**
 
-After dependencies are installed, ensure you've completed the steps from the [Native Configuration](#native-configuration) section above. Then, start the FastAPI development server:
-
-```bash
-# Linux/MacOS
-uv run fastapi dev
-```
-```ps1
-# Windows
-uv run fastapi dev
-```
+After dependencies are installed, ensure you've completed the steps from the [Native Configuration](#native-configuration) section above. Then, start the FastAPI development server as shown in the note above.
 
 ### **3. Verifying Native Setup**
 
-You can now verify that the backend is running correctly by these way:
+You can now verify that the auth service is running correctly by these way:
 
-1. **FastAPI**: [localhost:8000/docs](http://localhost:8000/docs)
-2. **pgAdmin**:
-- On `Windows/MacOS`, search for and open the **pgAdmin 4** application from your applications menu.
-- On `Linux`, search for pgAdmin or type `pgadmin4` in your terminal to start the application.
-- Default credentials on all OS environment are:
-
-```txt
-Host:       postgres
-Username:   postgres
-Password:   none, unless you set it explicitly during installation setup
-Database:   postgres
-```
-
-3. **PostgreSQL**:
-- We disabled direct access by default as this's totally viewable from **pgAdmin**. However, you can still do it by typing this in your terminal:
-
-```bash
-psql -U postgres # Linux/MacOS
-```
-```ps1
-psql -U postgres # Windows
-```
-
-If the connection is successful, you'll see the PostgreSQL prompt, which looks like this:
-
-```
-psql (18.3)
-Type "help" for help.
-
-postgres=#
-```
-
-The version number and exact format may vary depending on your PostgreSQL installation, but the prompt indicates a successful connection.
+1. **Auth (FastAPI)**: [localhost:8081/docs](http://localhost:8081/docs)
+2. **JWKS**: [localhost:8081/api/v1/auth/jwks.json](http://localhost:8081/api/v1/auth/jwks.json)
+3. **Keycloak**: [localhost:8080](http://localhost:8080) (it still has to run somewhere reachable by the browser *and* by this service - see `KEYCLOAK_PUBLIC_URL` & `KEYCLOAK_INTERNAL_URL` in `auth/cosmic_auth.env`)
 
 # **Configure Authentication Credentials**
 
 > [!CAUTION]
 > DO **NOT** COMMIT REAL CREDENTIALS.
 
-After running `.\bins\Setup.ps1` (Windows) or `./bins/setup.sh` (Linux/MacOS), the setup script copies example files into:
+After running `.\bins\setup.ps1` (Windows) or `./bins/setup.sh` (Linux/MacOS), the setup script copies example files into:
 
-- `auth/cosmic_auth.env` (Keycloak, Authlib session, and RS256 session-key settings used by the backend)
-- `docker/secrets/cosmic_{public,private}_session.pem` (the RS256 key that signs the CoSMIC session cookie)
-- `docker/secrets/keycloak_client_secret.txt` (the same Keycloak confidential-client secret mounted into the Keycloak container)
+- `auth/cosmic_auth.env` (Keycloak, Authlib session, and RS256 session-key settings used by the auth service)
+- `cores/cosmic_cfg.env` (connection settings for the shared PostgreSQL database — `DB_USER`/`DB_PASSWORD`/`DB_NAME` are reconciled with `docker/secrets/postgres_*.txt` on every run)
+- `docker/secrets/postgres_*.txt` (the shared database credentials; mirror the files `cosmic-db` uses and keep them in sync)
+- `docker/secrets/keycloak_*.txt` (Keycloak admin credentials, the confidential client secret, the seeded test user and the Google/Microsoft broker credentials)
+- `docker/secrets/cosmic_private_session.pem` & `docker/secrets/cosmic_public_session.pem` (the RS256 key-pair that signs the CoSMIC session cookie)
 
 Open `auth/cosmic_auth.env` and replace the defaults below:
 
 > [!IMPORTANT]
 > `KEYCLOAK_CLIENT_SECRET` environment variable value **must be identical** to
 > `docker/secrets/keycloak_client_secret.txt` value. If they differ, Keycloak
-> login will fail because the backend and Keycloak will not share the same client
-> secret.
+> login will fail because the auth service and Keycloak will not share the same
+> client secret.
 
 ## **Google & Microsoft (brokered by Keycloak)**
 
@@ -440,7 +392,7 @@ You can leave `KEYCLOAK_CLIENT_ID=cosmic-fastapi-keycloak` and the Keycloak URLs
 
 The CoSMIC session cookie is a JWT signed with **RS256** encryption algorithm using a static RSA key-pair. This way, other micro-services can verify it with the public key only.
 
-- Generate the key-pair with `.\bins\Setup.ps1` (Windows) or `./bins/setup.sh` (Linux/MacOS). It writes `docker/secrets/session_private.pem` & `docker/secrets/session_public.pem`.
+- Generate the key-pair with `.\bins\setup.ps1` (Windows) or `./bins/setup.sh` (Linux/MacOS). It writes `docker/secrets/cosmic_private_session.pem` & `docker/secrets/cosmic_public_session.pem`, both of which are gitignored.
 - The public half is published at `http://localhost:8081/api/v1/auth/jwks.json` for the other services to discover.
 - `cosmic_session` is the **only** application cookie. Because of that, Keycloak refresh token travels inside it as a claim, so `/refresh` & `/logout` endpoints need no separate token cookie.
 - `SESSION_SECRET` is now only used to sign the temporary Authlib OAuth state/nonce cookie for [Starlette SessionMiddleWare](https://starlette.dev/middleware/#sessionmiddleware), separate from the RS256 key-pair.
@@ -449,6 +401,6 @@ The CoSMIC session cookie is a JWT signed with **RS256** encryption algorithm us
 SESSION_SECRET=<your-unique-session-secret>
 SESSION_COOKIE_NAME=cosmic_session
 SESSION_MAX_AGE=900
-REFRESH_TOKEN_MAX_AGE=86400
-OAUTH_SESSION_COOKIE=cosmic_oauth_session
+SESSION_REFRESH_TOKEN_MAX_AGE=86400
+SESSION_OAUTH_COOKIE=cosmic_oauth_session
 ```
