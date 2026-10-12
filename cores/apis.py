@@ -20,6 +20,8 @@ from ..utils.keys import (
     public_key
 )
 from ..routers.apis.auth import auth_v1_router
+from ..routers.regulars.health import health_router
+from ..routers.regulars.jwks import jwks_router
 
 
 # TODO: Need some more research on this usage rather than the deprecation
@@ -72,6 +74,8 @@ cosmic_auth_app.add_middleware(
 
 
 # Normal endpoints
+cosmic_auth_app.include_router(router=health_router)
+cosmic_auth_app.include_router(router=jwks_router)
 
 
 # API endpoints (V1)

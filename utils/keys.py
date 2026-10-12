@@ -3,8 +3,8 @@ RSA key material for CoSMIC JWT session token using RS256 encryption algorithm.
 
 
 The private key stays local to the Auth BFF while the public one is published at
-``{AUTH_API_PREFIX}/jwks.json``. This way, other CoSMIC micro-services can verify
-a session cookie without sharing a symmetric secret.
+``/jwks.json``. This way, other CoSMIC micro-services can verify a session cookie
+without sharing a symmetric secret.
 """
 
 
