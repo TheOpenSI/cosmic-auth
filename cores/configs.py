@@ -1,15 +1,36 @@
 ### Core modules ###
 from pathlib import Path
+from dotenv import dotenv_values
 
 
 ### Type hints ###
 
 
 ### Internal modules ###
-from .env import get_env
 
 
-cosmic_auth_configs: dict[str, str | None] = get_env()
+def get_db_env() -> dict[str, str | None]:
+    """Load `cores/cosmic_cfg.env` (shared database and application settings)."""
+    env_file: Path = Path(__file__).resolve(strict=True).parent / "cosmic_cfg.env"
+
+    return dotenv_values(
+        dotenv_path=env_file,
+        encoding="utf-8"
+    )
+
+
+def get_auth_env() -> dict[str, str | None]:
+    """Load `cores/cosmic_auth.env` (BFF framework, session and Keycloak settings)."""
+    env_file: Path = Path(__file__).resolve(strict=True).parent / "cosmic_auth.env"
+
+    return dotenv_values(
+        dotenv_path=env_file,
+        encoding="utf-8"
+    )
+
+
+cosmic_db_configs: dict[str, str | None] = get_db_env()
+cosmic_auth_configs: dict[str, str | None] = get_auth_env()
 
 
 ### BFF Framework ###

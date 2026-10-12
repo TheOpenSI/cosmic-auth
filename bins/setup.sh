@@ -12,7 +12,6 @@ echo "==> Creating required directories..."
 
 mkdir -p docker/secrets
 mkdir -p cores
-mkdir -p auth
 
 echo "==> Checking and preparing environment/configuration files..."
 
@@ -40,7 +39,7 @@ done
 for file in examples/cosmic_auth.example.env; do
     [ -f "$file" ] || continue
     new_name=$(basename "$file" | sed 's/\.example//')
-    safe_copy "$file" "auth/$new_name"
+    safe_copy "$file" "cores/$new_name"
 done
 
 # Shared database secrets (.txt)

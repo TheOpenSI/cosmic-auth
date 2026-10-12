@@ -24,7 +24,7 @@ from authlib.integrations.starlette_client import OAuth
 
 
 ### Internal modules ###
-from .config import (
+from ...cores.configs import (
     KEYCLOAK_CLIENT_ID,
     KEYCLOAK_CLIENT_SECRET,
     keycloak_authorise_url,

@@ -70,7 +70,7 @@
 	],
 	"clients": [
 		{
-			"clientId": "cosmic-fastapi-keycloak",
+			"clientId": "cosmic-keycloak-fastapi",
 			"name": "CoSMIC FastAPI Keycloak",
 			"enabled": true,
 			"publicClient": false,

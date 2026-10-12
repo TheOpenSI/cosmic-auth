@@ -26,7 +26,7 @@ from typing import (
 
 
 ### Internal modules ###
-from ..base_models import RoleBase
+from ..bases import RoleBase
 if TYPE_CHECKING:
     """
     This's to resolve circular import issues, take a look at:

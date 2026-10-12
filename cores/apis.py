@@ -9,17 +9,17 @@ from starlette.middleware.sessions import SessionMiddleware
 
 
 ### Internal modules ###
-from .config import (
+from .configs import (
     AUTH_PUBLIC_URL,
     FRONTEND_URL,
     SESSION_OAUTH_COOKIE,
     SESSION_SECRET
 )
-from .keys import (
+from ..utils.keys import (
     private_key,
     public_key
 )
-from .routes import auth_v1_router
+from ..routers.apis.auth import auth_v1_router
 
 
 # TODO: Need some more research on this usage rather than the deprecation

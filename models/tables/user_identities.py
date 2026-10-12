@@ -9,7 +9,7 @@ from uuid import UUID, uuid7
 from sqlalchemy.sql.sqltypes import TIMESTAMP, Uuid
 from typing import TYPE_CHECKING, Optional
 
-from ..base_models import UserIdentityBase
+from ..bases import UserIdentityBase
 
 if TYPE_CHECKING:
     from .users import Users

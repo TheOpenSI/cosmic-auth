@@ -14,7 +14,6 @@ Write-Host "==> Creating required directories..."
 
 New-Item -ItemType Directory -Force -Path "docker\secrets" | Out-Null
 New-Item -ItemType Directory -Force -Path "cores" | Out-Null
-New-Item -ItemType Directory -Force -Path "auth" | Out-Null
 
 Write-Host "==> Checking and preparing environment/configuration files..."
 
@@ -40,11 +39,11 @@ foreach ($file in (Get-ChildItem -Path "examples" -Filter "cosmic_cfg*.example.e
     Invoke-SafeCopy -Source $file.FullName -Destination "cores\$newName"
 }
 
-# Auth (.env) → auth/
+# Auth (.env) → cores/
 foreach ($file in (Get-ChildItem -Path "examples" -Filter "cosmic_auth.example.env" -ErrorAction SilentlyContinue))
 {
     $newName = $file.Name -replace "\.example", ""
-    Invoke-SafeCopy -Source $file.FullName -Destination "auth\$newName"
+    Invoke-SafeCopy -Source $file.FullName -Destination "cores\$newName"
 }
 
 # Shared database secrets (.txt)
