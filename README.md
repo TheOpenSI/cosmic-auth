@@ -2,25 +2,33 @@
 
 ```md
 COSMIC-AUTH/
-├── apis/                   # Shared SQLModel ORM table definitions (users / roles / user_identities)
-│   ├── table_models/       # SQLModel ORM table definitions mapped to PostgreSQL database tables
-│   └── base_models.py      # SQLModel base classes inherited by the table models
-├── auth/                   # Auth BFF Framework (Authlib → Keycloak; session, /me, JWKS)
-│   ├── claims.py           # IdP user info mapped to one Cosmic claim shape
-│   ├── config.py           # BFF framework, CoSMIC session and Keycloak settings
-│   ├── env.py              # Reads `auth/cosmic_auth.env`
-│   ├── keys.py             # RS256 session key-pair loading + public JWKS
-│   ├── oauth.py            # Authlib OAuth2/OIDC client registry (Keycloak only)
-│   ├── session.py          # CoSMIC session cookie (joserfc, RS256)
-│   └── users_sync.py       # Upserts `users` / `user_identities` on login
+├── cores/                  # Application core
+│   ├── apis.py             # FastAPI application factory (CORS, session middleware, routers)
+│   ├── configs.py          # Loads `cores/cosmic_cfg.env` and `cores/cosmic_auth.env`
+│   ├── db.py               # Shared PostgreSQL engine and session dependency
+│   └── tags.py             # OpenAPI tag used by the auth endpoints
+├── models/                 # Shared SQLModel layer, trimmed to the auth footprint
+│   ├── bases/              # SQLModel base classes inherited by the table models
+│   ├── datas/              # `NormalisedClaims`, the single claim shape
+│   ├── tables/             # `users`, `roles`, `user_identities` + the mapper import point
+│   ├── responses/          # Response models (empty for now)
+│   └── filters/            # Query filters (empty for now)
+├── interfaces/             # IAM and IdP seams
+│   ├── abstracts/iam.py    # IAMProvider contract the Auth service depends on
+│   ├── abstracts/idp.py    # IdentityProvider contract for a single IdP
+│   ├── iams/keycloak.py    # Keycloak adapter (Authlib), supplied through FastAPI DI
+│   ├── iams/authentik.py   # Planned Authentik adapter (stub)
+│   └── idps/               # Google/Microsoft IdentityProvider implementations (Keycloak brokers them today)
+├── routers/                # HTTP surface
+│   ├── apis/auth.py        # `/api/v1/auth/*` endpoints
+│   └── regulars/           # Service-level endpoints (`/health`, `/jwks.json`)
+├── utils/                  # Session cookie, RS256 keys and the `ensure_user` upsert
 ├── bins/                   # Setup and RS256 key-generation helper scripts
-├── cores/                  # Database engine and environment loading for the shared PostgreSQL
 ├── docker/                 # Containerization resources and orchestration files
-│   ├── dockerfiles/        # Dockerfile for the Auth service
-│   ├── keycloak/           # Keycloak realm export imported on first container start
+│   ├── dockerfiles/        # Dockerfiles for the Auth and Keycloak services
+│   ├── keycloak/           # Realm export + entrypoint that loads the baked secrets
 │   └── secrets/            # RS256 session key-pair + Keycloak credentials (gitignored)
 ├── examples/               # Template files and default values for rapid environment setup
-├── types/                  # Shared type definitions used across the application
 ├── .dockerignore           # Files excluded from Docker builds
 ├── .gitattributes          # Git configuration for path attributes
 ├── .gitignore              # Files excluded from version control
@@ -42,7 +50,7 @@ This repository is **not** the owner of the CoSMIC PostgreSQL schema. It connect
 
 - `cosmic-db` remains the owner of the shared schema and its Alembic migrations. This repository therefore ships **no** `migrations/` and no `alembic.ini`.
 - Both repositories attach to the same `cosmic_net` Docker network; this repository declares that network as `external: true`, so start `cosmic-db` (`docker compose up -d database`) at least once before starting this one.
-- The Auth service listens on port `8081` and publishes the RS256 JWKS at `http://localhost:8081/api/v1/auth/jwks.json` for the other services.
+- The Auth service listens on port `8081`, publishes the RS256 JWKS at `http://localhost:8081/jwks.json` for the other services and answers a liveness probe at `GET /health`.
 
 > [!IMPORTANT]
 > This repository runs **no** PostgreSQL of its own. `bins/setup.ps1` /
@@ -143,7 +151,7 @@ Then, copy the following files from the `examples/` directory to the following l
 - `examples/postgres_*.example.txt` &rarr; `docker/secrets/postgres_*.txt` (the credentials of that same database — `bins/setup.*` keeps `DB_USER`/`DB_PASSWORD`/`DB_NAME` in `cores/cosmic_cfg.env` reconciled with them).
 
 2. **Auth service**:
-- `examples/cosmic_auth.example.env` &rarr; `auth/cosmic_auth.env` (contains Keycloak, Authlib session, and RS256 session-key settings. See [Configure Authentication Credentials](#configure-authentication-credentials) for more details).
+- `examples/cosmic_auth.example.env` &rarr; `cores/cosmic_auth.env` (contains Keycloak, Authlib session, RS256 session-key settings and the `IAM_PROVIDER` selection. See [Configure Authentication Credentials](#configure-authentication-credentials) for more details).
 - Generate the RS256 session keypair used to sign the CoSMIC session cookie using either `.\bins\setup.ps1` (Windows) or `./bins/setup.sh` (Linux/macOS).
 
 3. **Keycloak service**:
@@ -168,12 +176,12 @@ Copy the example environment files to their runtime locations:
 ```bash
 # Linux/MacOS
 cp ./examples/cosmic_cfg.example.env ./cores/cosmic_cfg.env
-cp ./examples/cosmic_auth.example.env ./auth/cosmic_auth.env
+cp ./examples/cosmic_auth.example.env ./cores/cosmic_auth.env
 ```
 ```ps1
 # Windows
 Copy-Item -Path .\examples\cosmic_cfg.example.env -Destination .\cores\cosmic_cfg.env
-Copy-Item -Path .\examples\cosmic_auth.example.env -Destination .\auth\cosmic_auth.env
+Copy-Item -Path .\examples\cosmic_auth.example.env -Destination .\cores\cosmic_auth.env
 ```
 
 Then, edit the `cores/cosmic_cfg.env` file to point at your local PostgreSQL
@@ -233,9 +241,10 @@ docker compose up --build -d # Docker run through lightweight Linux VM on Window
 Once the containers are running, you can verify that all services are working correctly by these way:
 
 1. **Auth (FastAPI)**: [localhost:8081/docs](http://localhost:8081/docs)
-2. **JWKS published to the other services**: [localhost:8081/api/v1/auth/jwks.json](http://localhost:8081/api/v1/auth/jwks.json)
-3. **Keycloak**: [localhost:8080](http://localhost:8080) **(use credentials from `docker/secrets/keycloak_admin_*.txt`)**
-4. **Shared PostgreSQL**:
+2. **JWKS published to the other services**: [localhost:8081/jwks.json](http://localhost:8081/jwks.json)
+3. **Liveness probe**: [localhost:8081/health](http://localhost:8081/health)
+4. **Keycloak**: [localhost:8080](http://localhost:8080) **(use credentials from `docker/secrets/keycloak_admin_*.txt`)**
+5. **Shared PostgreSQL**:
 - We disabled direct access by default as this's totally viewable from **pgAdmin** in `cosmic-db`. However, you can still do it by typing this in your terminal:
 
 ```bash
@@ -252,27 +261,23 @@ or go to **Docker Desktop**, search for `cosmic-postgres` service under `opensi-
 ## Native Setup
 
 > [!IMPORTANT]
-> The BFF imports its shared modules as `app.*` (e.g. `from app.types.tags import APITag`).
-> Inside the container that resolves because `WORKDIR /app` + `PYTHONPATH=/` make
-> this repository the `app` package. To run natively, expose the repository under
-> a package name `app` before starting the server:
+> The service is imported as the `app` package (`app.cores.apis:cosmic_auth_app`), which is how the container resolves it: the repository is mounted at `/app` and `PYTHONPATH` points at `/`. To run natively, expose the checkout under a package named `app` and start the server from inside it:
 
 ```bash
 # Linux/MacOS (run from the directory CONTAINING this repository)
 ln -s cosmic-auth app
-export PYTHONPATH="$PWD:$PWD/app"
-uv run --project cosmic-auth fastapi dev --entrypoint auth.main:cosmic_auth_app --port 8081
+cd app
+uv run fastapi dev
 ```
 ```ps1
 # Windows (run from the directory CONTAINING this repository)
 New-Item -ItemType Junction -Path .\app -Target .\cosmic-auth
-$env:PYTHONPATH = "$PWD;$PWD\app"
-uv run --project cosmic-auth fastapi dev --entrypoint auth.main:cosmic_auth_app --port 8081
+Set-Location app
+uv run fastapi dev
 ```
 
 > [!NOTE]
-> Rewriting those shared imports is planned as part of the repository
-> customisation work, after which the package alias will no longer be needed.
+> Only the package name has to be `app`; the checkout directory itself can be called anything.
 
 ### **1. Installing Dependencies**
 
@@ -296,8 +301,9 @@ After dependencies are installed, ensure you've completed the steps from the [Na
 You can now verify that the auth service is running correctly by these way:
 
 1. **Auth (FastAPI)**: [localhost:8081/docs](http://localhost:8081/docs)
-2. **JWKS**: [localhost:8081/api/v1/auth/jwks.json](http://localhost:8081/api/v1/auth/jwks.json)
-3. **Keycloak**: [localhost:8080](http://localhost:8080) (it still has to run somewhere reachable by the browser *and* by this service - see `KEYCLOAK_PUBLIC_URL` & `KEYCLOAK_INTERNAL_URL` in `auth/cosmic_auth.env`)
+2. **JWKS**: [localhost:8081/jwks.json](http://localhost:8081/jwks.json)
+3. **Liveness probe**: [localhost:8081/health](http://localhost:8081/health)
+4. **Keycloak**: [localhost:8080](http://localhost:8080) (it still has to run somewhere reachable by the browser *and* by this service - see `KEYCLOAK_PUBLIC_URL` & `KEYCLOAK_INTERNAL_URL` in `cores/cosmic_auth.env`)
 
 # **Configure Authentication Credentials**
 
@@ -306,13 +312,13 @@ You can now verify that the auth service is running correctly by these way:
 
 After running `.\bins\setup.ps1` (Windows) or `./bins/setup.sh` (Linux/MacOS), the setup script copies example files into:
 
-- `auth/cosmic_auth.env` (Keycloak, Authlib session, and RS256 session-key settings used by the auth service)
+- `cores/cosmic_auth.env` (Keycloak, Authlib session, RS256 session-key settings and the `IAM_PROVIDER` selection used by the auth service)
 - `cores/cosmic_cfg.env` (connection settings for the shared PostgreSQL database — `DB_USER`/`DB_PASSWORD`/`DB_NAME` are reconciled with `docker/secrets/postgres_*.txt` on every run)
 - `docker/secrets/postgres_*.txt` (the shared database credentials; mirror the files `cosmic-db` uses and keep them in sync)
 - `docker/secrets/keycloak_*.txt` (Keycloak admin credentials, the confidential client secret, the seeded test user and the Google/Microsoft broker credentials)
 - `docker/secrets/cosmic_private_session.pem` & `docker/secrets/cosmic_public_session.pem` (the RS256 key-pair that signs the CoSMIC session cookie)
 
-Open `auth/cosmic_auth.env` and replace the defaults below:
+Open `cores/cosmic_auth.env` and replace the defaults below:
 
 > [!IMPORTANT]
 > `KEYCLOAK_CLIENT_SECRET` environment variable value **must be identical** to
@@ -323,11 +329,13 @@ Open `auth/cosmic_auth.env` and replace the defaults below:
 ## **Google & Microsoft (brokered by Keycloak)**
 
 > [!TIP]
-> The realm import substitutes `${KEYCLOAK_GOOGLE_*}`/`${KEYCLOAK_MICROSOFT_*}`
-> from those secrets on first boot. Set them **before** the first
-> `docker compose up`. To change them later, either update the IdPs in the
-> Keycloak admin console, or remove the `cosmic-keycloak-data` volume and start
-> again so the realm is re-imported.
+> `docker/dockerfiles/keycloak.Dockerfile` bakes the realm export and the secrets
+> its `${...}` placeholders resolve to into the Keycloak image, and the realm is
+> imported on first boot. Set them **before** the first `docker compose up`; to
+> change them later, rebuild the image (`docker compose build keycloak`) and
+> recreate the container, update the IdPs in the Keycloak admin console, or
+> remove the `cosmic-keycloak-data` volume and start again so the realm is
+> re-imported.
 
 The platform itself only talks to Keycloak as Google & Microsoft are configured as its **identity providers (IdPs)**. Because of that, Keycloak login page shows a very clean typical username/password form + Google & Microsoft login icons by default.
 
@@ -347,11 +355,12 @@ Register each provider in its own console and use **Keycloak's broker callback**
 ## **Keycloak client secret**
 
 > [!TIP]
-> Set this **before** the first Keycloak start. Keycloak imports
-> `docker/keycloak/cosmic-realm.json` on first boot and substitutes
-> `${KEYCLOAK_CLIENT_SECRET}` from `docker/secrets/keycloak_client_secret.txt`.
-> If you change the secret later, also update the client secret in the Keycloak
-> admin console (**Clients** &rarr; `cosmic-fastapi-keycloak` &rarr; **Credentials**),
+> Set this **before** the first Keycloak start. The Keycloak image bakes
+> `docker/keycloak/cosmic-realm.json` and substitutes `${KEYCLOAK_CLIENT_SECRET}`
+> from `docker/secrets/keycloak_client_secret.txt` on first boot; rebuild it
+> (`docker compose build keycloak`) after changing a secret. If you change the
+> secret after the realm exists, also update the client secret in the Keycloak
+> admin console (**Clients** &rarr; `cosmic-keycloak-fastapi` &rarr; **Credentials**),
 > or remove the Keycloak volume and start again so the realm is re-imported.
 
 The default `KEYCLOAK_CLIENT_SECRET` is only a local example. You may keep it for a first run, but we recommend replacing it with a unique value.
@@ -369,7 +378,7 @@ uuidgen
 
 Put **the same value** in both places:
 
-1. `auth/cosmic_auth.env`:
+1. `cores/cosmic_auth.env`:
 
 ```txt
 KEYCLOAK_CLIENT_SECRET=<your-unique-secret>
@@ -381,7 +390,7 @@ KEYCLOAK_CLIENT_SECRET=<your-unique-secret>
 <your-unique-secret>
 ```
 
-You can leave `KEYCLOAK_CLIENT_ID=cosmic-fastapi-keycloak` and the Keycloak URLs/realm defaults unless you have changed those in the realm export.
+You can leave `KEYCLOAK_CLIENT_ID=cosmic-keycloak-fastapi` and the Keycloak URLs/realm defaults unless you have changed those in the realm export.
 
 ## **Session keys (RS256) and `SESSION_SECRET`**
 
@@ -393,7 +402,7 @@ You can leave `KEYCLOAK_CLIENT_ID=cosmic-fastapi-keycloak` and the Keycloak URLs
 The CoSMIC session cookie is a JWT signed with **RS256** encryption algorithm using a static RSA key-pair. This way, other micro-services can verify it with the public key only.
 
 - Generate the key-pair with `.\bins\setup.ps1` (Windows) or `./bins/setup.sh` (Linux/MacOS). It writes `docker/secrets/cosmic_private_session.pem` & `docker/secrets/cosmic_public_session.pem`, both of which are gitignored.
-- The public half is published at `http://localhost:8081/api/v1/auth/jwks.json` for the other services to discover.
+- The public half is published at `http://localhost:8081/jwks.json` for the other services to discover.
 - `cosmic_session` is the **only** application cookie. Because of that, Keycloak refresh token travels inside it as a claim, so `/refresh` & `/logout` endpoints need no separate token cookie.
 - `SESSION_SECRET` is now only used to sign the temporary Authlib OAuth state/nonce cookie for [Starlette SessionMiddleWare](https://starlette.dev/middleware/#sessionmiddleware), separate from the RS256 key-pair.
 
