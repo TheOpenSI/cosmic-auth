@@ -23,7 +23,6 @@ from ...cores.tags import APITag
 
 ### Internal modules ###
 from ...cores.configs import FRONTEND_URL
-from ...utils.keys import jwk_set
 from ...utils.session import (
     clear_auth_cookies,
     read_current_session,
@@ -71,15 +70,6 @@ _ALREADY_SIGNED_IN_TEMPLATE: str = """
 # Google & Microsoft are brokered inside Keycloak, so there is no direct-to-IdP
 # path to expose even if an old bookmark still points at one.
 _LOGIN_PATH: str = "/api/v1/auth/login"
-
-
-@auth_v1_router.get(
-    path="/jwks.json",
-    status_code=status.HTTP_200_OK
-)
-async def jwks() -> dict[str, list[dict[str, str | list[str]]]]:
-    """Public JWKS so the other CoSMIC microservices can verify the session."""
-    return jwk_set()
 
 
 @auth_v1_router.get(
