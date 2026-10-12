@@ -14,17 +14,9 @@ dependencies = [
     # NOTE: Required by Starlette's SessionMiddleware, which Authlib uses to
     # keep the temporary OAuth state/nonce.
     "itsdangerous>=2.2.0",
-    # NOTE: Used to detect near-miss (e.g. L337) immutable field value mimicry.
-    "rapidfuzz>=3.14.5",
+    # NOTE: Imported directly by utils/keys.py and utils/session.py to sign and
+    # verify the RS256 session cookie.
+    "joserfc>=1.7.5",
+    # NOTE: Imported directly by cores/configs.py to read the env files.
+    "python-dotenv>=1.2.2",
 ]
-
-
-[dependency-groups]
-dev = [
-    "faker>=37.0.0",
-]
-
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
