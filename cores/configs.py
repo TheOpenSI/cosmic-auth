@@ -120,31 +120,8 @@ KEYCLOAK_CLIENT_SECRET: str | None = cosmic_auth_configs.get(
 )
 
 
-### Other global configs ###
-OIDC_ISSUER:            str = f"{KEYCLOAK_PUBLIC_URL}/realms/{KEYCLOAK_REALM}"
-KEYCLOAK_REALM_PATH:    str = f"/realms/{KEYCLOAK_REALM}/protocol/openid-connect"
-
-
-def keycloak_authorise_url() -> str:
-    """Browser-facing authorise endpoint (public host)"""
-    return f"{KEYCLOAK_PUBLIC_URL}{KEYCLOAK_REALM_PATH}/auth"
-
-
-def keycloak_token_url() -> str:
-    """Container-facing token endpoint (internal host)"""
-    return f"{KEYCLOAK_INTERNAL_URL}{KEYCLOAK_REALM_PATH}/token"
-
-
-def keycloak_jwks_url() -> str:
-    """Container-facing JWKS endpoint (internal host)"""
-    return f"{KEYCLOAK_INTERNAL_URL}{KEYCLOAK_REALM_PATH}/certs"
-
-
-def keycloak_logout_url() -> str:
-    """Browser-facing RP-initiated logout endpoint (public host)"""
-    return f"{KEYCLOAK_PUBLIC_URL}{KEYCLOAK_REALM_PATH}/logout"
-
-
-def callback_url(provider: str = "keycloak") -> str:
-    """Callback URL (must match the IdP console redirect URI)"""
-    return f"{AUTH_PUBLIC_URL}/api/v1/auth/callback/{provider}"
+### IAM provider ###
+IAM_PROVIDER: str | None = cosmic_auth_configs.get(
+    "IAM_PROVIDER",
+    "keycloak"
+)
