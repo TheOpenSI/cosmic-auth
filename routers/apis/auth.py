@@ -18,37 +18,37 @@ from fastapi.responses import (
 ### Type hints ###
 from typing import Any
 from uuid import UUID
-from app.types.tags import APITag
+from ...cores.tags import APITag
 
 
 ### Internal modules ###
-from .config import (
+from ...cores.configs import (
     FRONTEND_URL,
     KEYCLOAK_CLIENT_ID,
     OIDC_ISSUER,
     callback_url,
     keycloak_logout_url
 )
-from .keys import jwk_set
-from .session import (
+from ...utils.keys import jwk_set
+from ...utils.session import (
     clear_auth_cookies,
     read_current_session,
     read_expired_session,
     set_session_cookie,
     unauthorised_cleared
 )
-from .claims import (
+from ...models.datas.claims import (
     NormalisedClaims,
     keycloak_user_info_to_claims
 )
-from .models import Users
-from .oauth import (
+from ...models.tables import Users
+from ...interfaces.iams.keycloak import (
     oauth,
     refresh_keycloak_token,
     revoke_keycloak_session
 )
-from .users_sync import ensure_user
-from app.cores.db import SessionDependency
+from ...utils.users_sync import ensure_user
+from ...cores.db import SessionDependency
 
 
 auth_v1_router: APIRouter = APIRouter(

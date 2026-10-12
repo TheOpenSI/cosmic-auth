@@ -18,7 +18,7 @@ from joserfc.jwk import RSAKey
 
 
 ### Internal modules ###
-from .config import (
+from ..cores.configs import (
     SESSION_KEY_ID,
     SESSION_PRIVATE_KEY_PATH,
     SESSION_PUBLIC_KEY_PATH

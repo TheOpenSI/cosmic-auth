@@ -24,7 +24,7 @@ from pydantic.types import UUID7
 
 
 ### Internal modules ###
-from .config import (
+from ..cores.configs import (
     AUTH_PUBLIC_URL,
     SESSION_COOKIE_NAME,
     SESSION_ISSUER,
@@ -37,7 +37,7 @@ from .keys import (
     private_key,
     public_key
 )
-from .claims import NormalisedClaims
+from ..models.datas.claims import NormalisedClaims
 
 
 def issue_session_token(

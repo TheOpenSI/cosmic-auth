@@ -15,13 +15,13 @@ from sqlmodel import select
 
 
 ### Internal modules ###
-from .claims import NormalisedClaims
-from .models import (
+from ..models.datas.claims import NormalisedClaims
+from ..models.tables import (
     Roles,
     UserIdentities,
     Users
 )
-from app.cores.db import SessionDependency
+from ..cores.db import SessionDependency
 
 
 def ensure_user(

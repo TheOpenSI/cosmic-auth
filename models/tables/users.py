@@ -29,14 +29,13 @@ from .user_identities import UserIdentities
 
 
 ### Internal modules ###
-from ..base_models import UserBase
+from ..bases import UserBase
 if TYPE_CHECKING:
     """
     This's to resolve circular import issues, take a look at:
     https://sqlmodel.tiangolo.com/tutorial/code-structure/#circular-imports
     """
     from .roles import Roles
-    from .chatboxes import Chatboxes
 
 
 
@@ -97,11 +96,6 @@ class Users(UserBase, table=True):
     """
     role: list["Roles"] = Relationship(
         back_populates="user"
-    )
-    chatboxes: list["Chatboxes"] = Relationship(
-        back_populates="user",
-        cascade_delete=True,
-        passive_deletes=True
     )
     identities: list["UserIdentities"] = Relationship(
         back_populates="user",
