@@ -1,5 +1,4 @@
 ### Core modules ###
-from urllib.parse import urlencode
 from httpx import HTTPError
 from authlib.integrations.base_client import OAuthError
 from fastapi import (
@@ -23,13 +22,7 @@ from ...cores.tags import APITag
 
 
 ### Internal modules ###
-from ...cores.configs import (
-    FRONTEND_URL,
-    KEYCLOAK_CLIENT_ID,
-    OIDC_ISSUER,
-    callback_url,
-    keycloak_logout_url
-)
+from ...cores.configs import FRONTEND_URL
 from ...utils.keys import jwk_set
 from ...utils.session import (
     clear_auth_cookies,
@@ -38,16 +31,9 @@ from ...utils.session import (
     set_session_cookie,
     unauthorised_cleared
 )
-from ...models.datas.claims import (
-    NormalisedClaims,
-    keycloak_user_info_to_claims
-)
+from ...models.datas.claims import NormalisedClaims
 from ...models.tables import Users
-from ...interfaces.iams.keycloak import (
-    oauth,
-    refresh_keycloak_token,
-    revoke_keycloak_session
-)
+from ...interfaces.iams import IAMProviderDependency
 from ...utils.users_sync import ensure_user
 from ...cores.db import SessionDependency
 
@@ -82,12 +68,9 @@ _ALREADY_SIGNED_IN_TEMPLATE: str = """
 """
 
 
-def _keycloak_redirect(requested: str | None = None) -> str:
-    """Resolve the requested provider to the only supported login target."""
-    # NOTE:
-    # Google/Microsoft are brokered inside Keycloak now. Therefore, we cannot
-    # expose a direct-to-IdP path even if an old bookmark still points at one.
-    return "/api/v1/auth/login"
+# Google & Microsoft are brokered inside Keycloak, so there is no direct-to-IdP
+# path to expose even if an old bookmark still points at one.
+_LOGIN_PATH: str = "/api/v1/auth/login"
 
 
 @auth_v1_router.get(
@@ -103,12 +86,13 @@ async def jwks() -> dict[str, list[dict[str, str | list[str]]]]:
     path="/login",
     status_code=status.HTTP_200_OK
 )
-async def login(request: Request) -> RedirectResponse:
-    redirect_uri: str = callback_url(provider="keycloak")
-
-    return await oauth.keycloak.authorize_redirect(
-        request,
-        redirect_uri
+async def login(
+    request:    Request,
+    iam:        IAMProviderDependency
+) -> RedirectResponse:
+    return await iam.authorize_redirect(
+        request=request,
+        redirect_uri=iam.callback_url()
     )
 
 
@@ -118,19 +102,18 @@ async def login(request: Request) -> RedirectResponse:
 )
 async def login_provider(
     request:    Request,
-    provider:   str
+    provider:   str,
+    iam:        IAMProviderDependency
 ) -> RedirectResponse:
-    if provider.strip().lower() != "keycloak":
+    if provider.strip().lower() != iam.name:
         return RedirectResponse(
-            url=_keycloak_redirect(requested=provider),
+            url=_LOGIN_PATH,
             status_code=status.HTTP_302_FOUND
         )
 
-    redirect_uri: str = callback_url(provider="keycloak")
-
-    return await oauth.keycloak.authorize_redirect(
-        request,
-        redirect_uri
+    return await iam.authorize_redirect(
+        request=request,
+        redirect_uri=iam.callback_url()
     )
 
 
@@ -142,13 +125,14 @@ async def callback_provider(
     provider:   str,
     request:    Request,
     session:    SessionDependency,
+    iam:        IAMProviderDependency,
     code:       str | None = None,
     state:      str | None = None,
     error:      str | None = None
 ) -> Response:
-    if provider.strip().lower() != "keycloak":
+    if provider.strip().lower() != iam.name:
         return RedirectResponse(
-            url=_keycloak_redirect(requested=provider),
+            url=_LOGIN_PATH,
             status_code=status.HTTP_302_FOUND
         )
 
@@ -181,17 +165,9 @@ async def callback_provider(
         )
 
     try:
-        tokens = await oauth.keycloak.authorize_access_token(
-            request,
-            claims_options={
-                "iss": {
-                    "essential": True,
-                    "value": str(OIDC_ISSUER)
-                }
-            },
-        )
+        tokens: dict[str, Any] = await iam.exchange_code(request=request)
 
-        claims: NormalisedClaims = keycloak_user_info_to_claims(
+        claims: NormalisedClaims = iam.claims_from_user_info(
             user_info=tokens.get(
                 "userinfo",
                 {}
@@ -247,7 +223,10 @@ async def callback_provider(
     path="/logout",
     status_code=status.HTTP_200_OK
 )
-async def logout(request: Request) -> RedirectResponse:
+async def logout(
+    request:    Request,
+    iam:        IAMProviderDependency
+) -> RedirectResponse:
     refresh_token: str | None = None
 
     try:
@@ -267,7 +246,7 @@ async def logout(request: Request) -> RedirectResponse:
 
     if refresh_token:
         try:
-            await revoke_keycloak_session(refresh_token=refresh_token)
+            await iam.revoke(refresh_token=refresh_token)
 
         except Exception:  # noqa: BLE001 - logout must never trap the user
             pass
@@ -277,16 +256,11 @@ async def logout(request: Request) -> RedirectResponse:
         None
     )
 
-    params: dict[str, str | None] = {
-        "client_id":                str(KEYCLOAK_CLIENT_ID),
-        "post_logout_redirect_uri": f"{str(FRONTEND_URL)}/login"
-    }
-
-    if id_token:
-        params["id_token_hint"] = id_token
-
     response: RedirectResponse = RedirectResponse(
-        url=f"{keycloak_logout_url()}?{urlencode(query=params)}",
+        url=iam.logout_redirect(
+            post_logout_redirect_uri=f"{str(FRONTEND_URL)}/login",
+            id_token=id_token
+        ),
         status_code=status.HTTP_302_FOUND
     )
 
@@ -300,8 +274,9 @@ async def logout(request: Request) -> RedirectResponse:
     status_code=status.HTTP_200_OK
 )
 async def refresh(
-    request: Request,
-    session: SessionDependency
+    request:    Request,
+    session:    SessionDependency,
+    iam:        IAMProviderDependency
 ) -> JSONResponse:
     old_session_token: dict[str, str | list[str] | None] = read_expired_session(request=request)
     stored_refresh_token: str | list[str] | None = old_session_token.get(
@@ -341,7 +316,7 @@ async def refresh(
         return unauthorised_cleared()
 
     try:
-        tokens: dict[str, str]          = await refresh_keycloak_token(refresh_token=refresh_token)
+        tokens: dict[str, Any]          = await iam.refresh(refresh_token=refresh_token)
         claims: NormalisedClaims | None = None
 
         if tokens.get(
@@ -349,12 +324,9 @@ async def refresh(
             None
         ):
             try:
-                user_info: dict[str, Any] = await oauth.keycloak.parse_id_token(
-                    tokens,
-                    nonce=None
-                )
+                user_info: dict[str, Any] = await iam.parse_id_token(tokens=tokens)
 
-                claims = keycloak_user_info_to_claims(user_info=user_info)
+                claims = iam.claims_from_user_info(user_info=user_info)
 
             except Exception:  # noqa: BLE001 - fall back to the current session
                 claims = None
