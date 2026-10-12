@@ -1,76 +1,30 @@
+"""
+Base models required by CoSMIC Auth micro-service.
+
+
+Each base declares only the columns shared by every CoSMIC service and is
+inherited by the matching table model in `models/tables/` (`UserBase` ->
+`Users`, `RoleBase` -> `Roles`, `UserIdentityBase` -> `UserIdentities`). This
+style of class naming is following the multiple-models pattern of the FastAPI SQL
+databases tutorial. Keep the re-exports below in sync with the modules of this
+package so the table models can always import them from `models.bases`.
+"""
+
+
 ### Core modules ###
-from sqlmodel import (
-    Field,
-    SQLModel
-)
 
 
 ### Type hints ###
-from uuid import UUID
-from sqlalchemy.sql.sqltypes import (
-    VARCHAR,
-    Text,
-    Uuid
-)
 
 
 ### Internal modules ###
+from .roles import RoleBase
+from .user_identities import UserIdentityBase
+from .users import UserBase
 
 
-
-"""
-To understand how this file structured, take a look at:
-https://fastapi.tiangolo.com/tutorial/sql-databases/#update-the-app-with-multiple-models
-"""
-class UserBase(SQLModel):
-    role_id: UUID = Field(
-        nullable=False,
-        sa_type=Uuid(
-            as_uuid=True,
-            native_uuid=True
-        ) # pyright: ignore
-    )
-    name: str = Field(
-        max_length=255,
-        nullable=False,
-        sa_type=VARCHAR(
-            length=255,
-            collation=None
-        ) # pyright: ignore
-    )
-
-
-class RoleBase(SQLModel):
-    name: str = Field(
-        max_length=255,
-        nullable=False,
-        sa_type=VARCHAR(
-            length=255,
-            collation=None
-        ) # pyright: ignore
-    )
-    desc: str | None = Field(
-        default=None,
-        nullable=True,
-        sa_type=Text(
-            length=None,
-            collation=None
-        ) # pyright: ignore
-    )
-
-
-class UserIdentityBase(SQLModel):
-    user_id: UUID = Field(
-        nullable=False,
-        sa_type=Uuid(as_uuid=True, native_uuid=True),  # pyright: ignore
-    )
-    provider: str = Field(
-        max_length=50,
-        nullable=False,
-        sa_type=VARCHAR(length=50, collation=None),  # pyright: ignore
-    )
-    sub: str = Field(
-        max_length=255,
-        nullable=False,
-        sa_type=VARCHAR(length=255, collation=None),  # pyright: ignore
-    )
+__all__: list[str] = [
+    "RoleBase",
+    "UserIdentityBase",
+    "UserBase"
+]

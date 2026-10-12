@@ -7,12 +7,17 @@ from sqlmodel import (
 
 
 ### Type hints ###
+from collections.abc import Generator
 from sqlalchemy.engine import Engine
-from typing_extensions import Annotated, Any, Generator
+from typing import (
+    Annotated,
+    Any
+)
 
 
 ### Internal modules ###
 from .configs import cosmic_db_configs
+
 
 cosmic_db_dia:  str | None = cosmic_db_configs["DB_DIALECT"]
 cosmic_db_dri:  str | None = cosmic_db_configs["DB_DRIVER"]
@@ -47,4 +52,7 @@ def get_session() -> Generator[Session, Any, Any]:
         yield session
 
 
-SessionDependency = Annotated[Session, Depends(dependency=get_session)]
+SessionDependency = Annotated[
+    Session,
+    Depends(dependency=get_session)
+]

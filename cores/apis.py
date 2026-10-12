@@ -43,14 +43,14 @@ async def lifespan(app: FastAPI):
     # Equivalent to 'shutdown' event
 
 
-cosmic_auth_app: FastAPI = FastAPI(
+app: FastAPI = FastAPI(
     lifespan=lifespan,
     title="CoSMIC Auth API"
 )
 
 
 # NOTE: enable CORS on application level (only on dev)
-cosmic_auth_app.add_middleware(
+app.add_middleware(
     middleware_class=CORSMiddleware,
     allow_credentials=True,
     allow_origins=[str(FRONTEND_URL)],
@@ -64,7 +64,7 @@ cosmic_auth_app.add_middleware(
 
 
 # Authlib's web client keeps the temporary OAuth state/nonce in the session.
-cosmic_auth_app.add_middleware(
+app.add_middleware(
     middleware_class=SessionMiddleware,
     secret_key=str(SESSION_SECRET),
     session_cookie=str(SESSION_OAUTH_COOKIE),
@@ -74,9 +74,9 @@ cosmic_auth_app.add_middleware(
 
 
 # Normal endpoints
-cosmic_auth_app.include_router(router=health_router)
-cosmic_auth_app.include_router(router=jwks_router)
+app.include_router(router=health_router)
+app.include_router(router=jwks_router)
 
 
 # API endpoints (V1)
-cosmic_auth_app.include_router(router=auth_v1_router)
+app.include_router(router=auth_v1_router)

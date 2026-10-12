@@ -8,6 +8,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
+# Similar concept to the `-DbEnvFile` parameter in the PowerShell script version:
+# the `.env` file the shared-database credentials are reconciled from.
+DB_ENV_FILE="${1:-../cosmic-db/cores/cosmic_cfg.env}"
+
 echo "==> Creating required directories..."
 
 mkdir -p docker/secrets
@@ -42,13 +46,6 @@ for file in examples/cosmic_auth.example.env; do
     safe_copy "$file" "cores/$new_name"
 done
 
-# Shared database secrets (.txt)
-for file in examples/postgres_*.example.txt; do
-    [ -f "$file" ] || continue
-    new_name=$(basename "$file" | sed 's/\.example//')
-    safe_copy "$file" "docker/secrets/$new_name"
-done
-
 # Keycloak secrets (.txt)
 for file in examples/keycloak_*.example.txt; do
     [ -f "$file" ] || continue
@@ -57,32 +54,44 @@ for file in examples/keycloak_*.example.txt; do
 done
 
 # Reconcile the shared-database credentials in `cores/cosmic_cfg.env` with the
-# secret files the PostgreSQL container reads, so the Auth service can never
-# drift from the database it talks to. Edit the secrets, not the env file.
+# values declared in another `.env` file (by default the database owner,
+# `cosmic-db`). This way, the Auth micro-service can never drift from the
+# database it talks to. Point it elsewhere with the positional argument.
 DB_CONFIG="cores/cosmic_cfg.env"
-DB_USER_SECRET="docker/secrets/postgres_usr.txt"
-DB_PWD_SECRET="docker/secrets/postgres_pwd.txt"
-DB_NAME_SECRET="docker/secrets/postgres_db.txt"
 
-if [[ -f "${DB_USER_SECRET}" && -f "${DB_PWD_SECRET}" && -f "${DB_NAME_SECRET}" ]]; then
-    DB_USER_VALUE="$(tr -d '\r\n' < "${DB_USER_SECRET}")"
-    DB_PWD_VALUE="$(tr -d '\r\n' < "${DB_PWD_SECRET}")"
-    DB_NAME_VALUE="$(tr -d '\r\n' < "${DB_NAME_SECRET}")"
-    DB_TMP="${DB_CONFIG}.tmp"
+read_env_value() {
+    sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "$2" \
+        | tr -d '\r' \
+        | tail -n 1 \
+        | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
+}
 
-    while IFS= read -r line || [ -n "${line}" ]; do
-        case "${line}" in
-            DB_USER=*)     printf 'DB_USER=%s\n' "${DB_USER_VALUE}" ;;
-            DB_PASSWORD=*) printf 'DB_PASSWORD=%s\n' "${DB_PWD_VALUE}" ;;
-            DB_NAME=*)     printf 'DB_NAME=%s\n' "${DB_NAME_VALUE}" ;;
-            *)             printf '%s\n' "${line}" ;;
-        esac
-    done < "${DB_CONFIG}" > "${DB_TMP}"
-    mv "${DB_TMP}" "${DB_CONFIG}"
-
-    echo "==> Reconciled [DB_USER], [DB_PASSWORD] and [DB_NAME] in [${DB_CONFIG}] with [docker/secrets/postgres_*.txt]."
+if [[ ! -f "${DB_ENV_FILE}" ]]; then
+    echo "==> Skipped: shared-database credentials not reconciled ([${DB_ENV_FILE}] not found)."
+elif [[ ! -f "${DB_CONFIG}" ]]; then
+    echo "==> Skipped: shared-database credentials not reconciled ([${DB_CONFIG}] not found)."
 else
-    echo "==> Skipped: shared-database credentials not reconciled (postgres secrets missing)."
+    DB_USER_VALUE="$(read_env_value DB_USER "${DB_ENV_FILE}")"
+    DB_PWD_VALUE="$(read_env_value DB_PASSWORD "${DB_ENV_FILE}")"
+    DB_NAME_VALUE="$(read_env_value DB_NAME "${DB_ENV_FILE}")"
+
+    if [[ -z "${DB_USER_VALUE}" || -z "${DB_PWD_VALUE}" || -z "${DB_NAME_VALUE}" ]]; then
+        echo "==> Skipped: shared-database credentials not reconciled (missing [DB_USER], [DB_PASSWORD] or [DB_NAME] in [${DB_ENV_FILE}])."
+    else
+        DB_TMP="${DB_CONFIG}.tmp"
+
+        while IFS= read -r line || [ -n "${line}" ]; do
+            case "${line}" in
+                DB_USER=*)     printf 'DB_USER=%s\n' "${DB_USER_VALUE}" ;;
+                DB_PASSWORD=*) printf 'DB_PASSWORD=%s\n' "${DB_PWD_VALUE}" ;;
+                DB_NAME=*)     printf 'DB_NAME=%s\n' "${DB_NAME_VALUE}" ;;
+                *)             printf '%s\n' "${line}" ;;
+            esac
+        done < "${DB_CONFIG}" > "${DB_TMP}"
+        mv "${DB_TMP}" "${DB_CONFIG}"
+
+        echo "==> Reconciled [DB_USER], [DB_PASSWORD] and [DB_NAME] in [${DB_CONFIG}] with [${DB_ENV_FILE}]."
+    fi
 fi
 
 # Generates the RS256 key-pair used to sign the CoSMIC session cookie

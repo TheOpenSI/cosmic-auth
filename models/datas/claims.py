@@ -1,4 +1,7 @@
-"""The single Cosmic claim shape produced from an IdP login."""
+"""
+The single CoSMIC claim shape produced from an IdP login.
+"""
+
 
 ### Core modules ###
 from dataclasses import (

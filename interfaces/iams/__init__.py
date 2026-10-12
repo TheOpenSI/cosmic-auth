@@ -1,10 +1,13 @@
-"""IAM provider registry.
-
-`cores/configs.py` selects the provider through `IAM_PROVIDER`; only Keycloak is
-wired up today. The adapter is handed to the routers as a FastAPI dependency so
-another implementation can be swapped in - or overridden in tests - without
-touching the endpoints.
 """
+IAM provider registry.
+
+
+``cores/configs.py`` selects the provider through ``IAM_PROVIDER``. As of the
+time this commit get push, only Keycloak is wired up today. The adapter is handed
+to the routers as a FastAPI dependency so another implementation can be swapped
+in, or overridden in tests, without touching the endpoints.
+"""
+
 
 ### Core modules ###
 from fastapi import Depends
@@ -27,9 +30,7 @@ def get_iam_provider() -> IAMProvider:
     if provider == "keycloak":
         return KeycloakIAM()
 
-    raise NotImplementedError(
-        f"IAM provider [{provider}] is not implemented yet."
-    )
+    raise NotImplementedError(f"IAM provider [{provider}] is not implemented yet.")
 
 
 IAMProviderDependency = Annotated[

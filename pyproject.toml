@@ -1,7 +1,7 @@
 [project]
-name = "CoSMIC-Auth"
+name = "cosmic-auth"
 version = "1.0.0"
-description = "Cognitive System of Machine Intelligent Computing (authentication service)"
+description = "Cognitive System of Machine Intelligent Computing (auth micro-service)"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [

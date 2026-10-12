@@ -1,9 +1,11 @@
-"""Keycloak implementation of the IAM provider contract.
+"""
+Keycloak implementation of the IAM provider contract.
 
-Only Keycloak is registered since Google & Microsoft are brokered *inside*
-Keycloak (see ``docker/keycloak/cosmic-realm.json``). This way, the Auth service
-always talks to a single OpenID Connect provider and runs a single
-authorisation-code flow.
+
+Only Keycloak is registered since Google & Microsoft are brokered *inside* it
+(see ``docker/keycloak/cosmic-realm.json``). This way, the Auth micro-service
+always talks to a single OpenID Connect provider and runs a single authorisation
+code flow.
 
 The browser must be sent to ``KEYCLOAK_PUBLIC_URL`` while the container exchanges
 the code and fetches JWKS from ``KEYCLOAK_INTERNAL_URL``. The endpoints are
@@ -26,7 +28,8 @@ from collections.abc import Mapping
 from typing import (
     Any,
     ClassVar,
-    Final
+    Final,
+    override
 )
 
 
@@ -43,8 +46,8 @@ from ..abstracts.iam import IAMProvider
 from ...models.datas.claims import NormalisedClaims
 
 
-_KEYCLOAK_CLIENT_NAME: Final[str] = "keycloak"
-_KEYCLOAK_REALM_PATH: Final[str] = f"/realms/{KEYCLOAK_REALM}/protocol/openid-connect"
+_KEYCLOAK_CLIENT_NAME:  Final[str] = "keycloak"
+_KEYCLOAK_REALM_PATH:   Final[str] = f"/realms/{KEYCLOAK_REALM}/protocol/openid-connect"
 
 
 def keycloak_issuer() -> str:
@@ -87,26 +90,32 @@ oauth.register(
 
 
 class KeycloakIAM(IAMProvider):
-    """Authlib-backed Keycloak adapter."""
+    """Keycloak adapter (backed by ``Authlib``)."""
 
     name: ClassVar[str] = _KEYCLOAK_CLIENT_NAME
 
     @property
+    @override
     def issuer(self) -> str:
         return keycloak_issuer()
 
-    async def authorize_redirect(
+    @override
+    async def authorise_redirect(
         self,
         request:        Request,
         redirect_uri:   str
     ) -> RedirectResponse:
-        return await oauth.keycloak.authorize_redirect( # pyright: ignore[reportGeneralTypeIssues]
+        return await oauth.keycloak.authorize_redirect(
             request,
             redirect_uri
         )
 
-    async def exchange_code(self, request: Request) -> dict[str, Any]:
-        return await oauth.keycloak.authorize_access_token( # pyright: ignore[reportGeneralTypeIssues]
+    @override
+    async def exchange_code(
+        self,
+        request: Request
+    ) -> dict[str, Any]:
+        return await oauth.keycloak.authorize_access_token(
             request,
             claims_options={
                 "iss": {
@@ -116,13 +125,21 @@ class KeycloakIAM(IAMProvider):
             }
         )
 
-    async def parse_id_token(self, tokens: dict[str, Any]) -> dict[str, Any]:
-        return await oauth.keycloak.parse_id_token( # pyright: ignore[reportGeneralTypeIssues]
+    @override
+    async def parse_id_token(
+        self,
+        tokens: dict[str, Any]
+    ) -> dict[str, Any]:
+        return await oauth.keycloak.parse_id_token(
             tokens,
             nonce=None
         )
 
-    async def refresh(self, refresh_token: str) -> dict[str, Any]:
+    @override
+    async def refresh(
+        self,
+        refresh_token: str
+    ) -> dict[str, Any]:
         """Exchange a refresh token at Keycloak without a metadata round-trip."""
         async with AsyncOAuth2Client( # pyright: ignore[reportGeneralTypeIssues]
             client_id=str(KEYCLOAK_CLIENT_ID),
@@ -133,7 +150,11 @@ class KeycloakIAM(IAMProvider):
                 refresh_token=refresh_token
             )
 
-    async def revoke(self, refresh_token: str) -> None:
+    @override
+    async def revoke(
+        self,
+        refresh_token: str
+    ) -> None:
         """Best-effort end of the Keycloak session tied to this refresh token."""
         async with AsyncOAuth2Client( # pyright: ignore[reportGeneralTypeIssues]
             client_id=str(KEYCLOAK_CLIENT_ID),
@@ -150,6 +171,7 @@ class KeycloakIAM(IAMProvider):
 
             return None
 
+    @override
     def logout_redirect(
         self,
         post_logout_redirect_uri:  str,
@@ -165,10 +187,15 @@ class KeycloakIAM(IAMProvider):
 
         return f"{keycloak_logout_url()}?{urlencode(query=params)}"
 
+    @override
     def callback_url(self) -> str:
         return f"{AUTH_PUBLIC_URL}/api/v1/auth/callback/{self.name}"
 
-    def claims_from_user_info(self, user_info: Mapping[str, Any]) -> NormalisedClaims:
+    @override
+    def claims_from_user_info(
+        self,
+        user_info: Mapping[str, Any]
+    ) -> NormalisedClaims:
         """
         Map Keycloak's OIDC user info onto :class:`NormalisedClaims`.
 
@@ -185,11 +212,9 @@ class KeycloakIAM(IAMProvider):
 
         return NormalisedClaims(
             provider=self.name,
-            sub=str(
-                user_info.get(
-                    "sub",
-                    ""
-                )
+            sub=user_info.get(
+                "sub",
+                ""
             ),
             email=user_info.get(
                 "email",

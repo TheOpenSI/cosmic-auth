@@ -44,7 +44,7 @@ To understand how this file structured, take a look at:
 https://fastapi.tiangolo.com/tutorial/sql-databases/#update-the-app-with-multiple-models
 """
 class Users(UserBase, table=True):
-    __tablename__: str = "users" # pyright: ignore
+    __tablename__: str = "users" # pyright: ignore[reportIncompatibleVariableOverride]
     __table_args__: tuple[
         PrimaryKeyConstraint,
         ForeignKeyConstraint,
@@ -75,7 +75,7 @@ class Users(UserBase, table=True):
         sa_type=VARCHAR(
             length=255,
             collation=None
-        ) # pyright: ignore
+        ) # pyright: ignore[reportArgumentType]
     )
     id: UUID = Field(
         default_factory=(lambda: uuid7()),
@@ -83,12 +83,12 @@ class Users(UserBase, table=True):
         sa_type=Uuid(
             as_uuid=True,
             native_uuid=True
-        ) # pyright: ignore
+        ) # pyright: ignore[reportArgumentType]
     )
     create_on: datetime = Field(
         default_factory=(lambda: datetime.now(tz=timezone.utc)),
         nullable=False,
-        sa_type=TIMESTAMP(timezone=True) # pyright: ignore
+        sa_type=TIMESTAMP(timezone=True) # pyright: ignore[reportArgumentType]
     )
 
     """

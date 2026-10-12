@@ -14,7 +14,10 @@ from datetime import (
     datetime,
     timezone
 )
-from uuid import UUID, uuid7
+from uuid import (
+    UUID,
+    uuid7
+)
 from sqlalchemy.sql.sqltypes import (
     TIMESTAMP,
     Uuid
@@ -41,7 +44,7 @@ To understand how this file structured, take a look at:
 https://fastapi.tiangolo.com/tutorial/sql-databases/#update-the-app-with-multiple-models
 """
 class Roles(RoleBase, table=True):
-    __tablename__: str = "roles" # pyright: ignore
+    __tablename__: str = "roles" # pyright: ignore[reportIncompatibleVariableOverride]
     __table_args__: tuple[
         PrimaryKeyConstraint,
         UniqueConstraint
@@ -62,12 +65,12 @@ class Roles(RoleBase, table=True):
         sa_type=Uuid(
             as_uuid=True,
             native_uuid=True
-        ) # pyright: ignore
+        ) # pyright: ignore[reportArgumentType]
     )
     create_on: datetime = Field(
         default_factory=(lambda: datetime.now(tz=timezone.utc)),
         nullable=False,
-        sa_type=TIMESTAMP(timezone=True) # pyright: ignore
+        sa_type=TIMESTAMP(timezone=True) # pyright: ignore[reportArgumentType]
     )
 
     """
