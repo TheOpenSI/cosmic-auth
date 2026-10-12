@@ -5,8 +5,10 @@ services:
     container_name: cosmic-keycloak
     restart: unless-stopped
     build:
-      # Its own context so the realm export and the baked secrets never enter the
-      # Auth image build context (see .dockerignore).
+      # NOTE:
+      # Start from within `docker/` directory directly so its special context
+      # (realm export & the baked secrets) never enter the FastAPI image build
+      # context (see .dockerignore).
       context: ./docker
       dockerfile: ./dockerfiles/keycloak.Dockerfile
     volumes:

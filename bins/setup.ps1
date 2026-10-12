@@ -10,6 +10,12 @@ $scriptRoot = $PSScriptRoot
 $projectRoot = Split-Path -Parent $scriptRoot
 Set-Location $projectRoot
 
+# Similar concept to the positional <db-env-file> argument in the Bash version:
+# the `.env` file the shared-database credentials are reconciled from.
+param(
+    [string] $DbEnvFile = "..\cosmic-db\cores\cosmic_cfg.env"
+)
+
 Write-Host "==> Creating required directories..."
 
 New-Item -ItemType Directory -Force -Path "docker\secrets" | Out-Null
@@ -46,13 +52,6 @@ foreach ($file in (Get-ChildItem -Path "examples" -Filter "cosmic_auth.example.e
     Invoke-SafeCopy -Source $file.FullName -Destination "cores\$newName"
 }
 
-# Shared database secrets (.txt)
-foreach ($file in (Get-ChildItem -Path "examples" -Filter "postgres_*.example.txt" -ErrorAction SilentlyContinue))
-{
-    $newName = $file.Name -replace "\.example", ""
-    Invoke-SafeCopy -Source $file.FullName -Destination "docker\secrets\$newName"
-}
-
 # Keycloak secrets (.txt)
 foreach ($file in (Get-ChildItem -Path "examples" -Filter "keycloak_*.example.txt" -ErrorAction SilentlyContinue))
 {
@@ -61,38 +60,55 @@ foreach ($file in (Get-ChildItem -Path "examples" -Filter "keycloak_*.example.tx
 }
 
 # Reconcile the shared-database credentials in `cores/cosmic_cfg.env` with the
-# secret files the PostgreSQL container reads, so the Auth service can never
-# drift from the database it talks to. Edit the secrets, not the env file.
+# values declared in another `.env` file (by default the database owner,
+# `cosmic-db`). This way, the Auth micro-service can never drift from the
+# database it talks to. Point it elsewhere with the `-DbEnvFile` parameter.
 $dbConfigPath = "cores\cosmic_cfg.env"
-$dbSecretMap = [ordered]@{
-    DB_USER     = "docker\secrets\postgres_usr.txt"
-    DB_PASSWORD = "docker\secrets\postgres_pwd.txt"
-    DB_NAME     = "docker\secrets\postgres_db.txt"
-}
+$dbEnvKeys = @(
+	"DB_USER",
+	"DB_PASSWORD",
+	"DB_NAME"
+)
 
-$dbSecretValues = @{}
-$missingSecrets = @()
-foreach ($entry in $dbSecretMap.GetEnumerator()) {
-    if (Test-Path $entry.Value) {
-        $dbSecretValues[$entry.Key] = (Get-Content -Path $entry.Value -Raw).Trim()
-    } else {
-        $missingSecrets += $entry.Value
-    }
-}
+$dbEnvValues = @{}
+$missingKeys = @()
 
-if ($missingSecrets.Count -gt 0) {
-    Write-Host "==> Skipped: shared-database credentials not reconciled (missing: $($missingSecrets -join ', '))."
+if (-not (Test-Path -LiteralPath $DbEnvFile)) {
+    Write-Host "==> Skipped: shared-database credentials not reconciled ([$DbEnvFile] not found)."
+}
+elseif (-not (Test-Path -LiteralPath $dbConfigPath)) {
+    Write-Host "==> Skipped: shared-database credentials not reconciled ([$dbConfigPath] not found)."
 }
 else {
-    $reconciled = foreach ($line in (Get-Content -Path $dbConfigPath)) {
-        if     ($line -like "DB_USER=*")     { "DB_USER=$($dbSecretValues['DB_USER'])" }
-        elseif ($line -like "DB_PASSWORD=*") { "DB_PASSWORD=$($dbSecretValues['DB_PASSWORD'])" }
-        elseif ($line -like "DB_NAME=*")     { "DB_NAME=$($dbSecretValues['DB_NAME'])" }
-        else                                 { $line }
+    $sourceEnv = @{}
+    foreach ($line in (Get-Content -Path $DbEnvFile)) {
+        if ($line -match "^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$") {
+            $sourceEnv[$Matches[1]] = $Matches[2].Trim().Trim('"').Trim("'")
+        }
     }
 
-    Set-Content -Path $dbConfigPath -Value $reconciled
-    Write-Host "==> Reconciled [DB_USER], [DB_PASSWORD] and [DB_NAME] in [$dbConfigPath] with [docker\secrets\postgres_*.txt]."
+    foreach ($key in $dbEnvKeys) {
+        if ($sourceEnv.ContainsKey($key) -and $sourceEnv[$key]) {
+            $dbEnvValues[$key] = $sourceEnv[$key]
+        } else {
+            $missingKeys += $key
+        }
+    }
+
+    if ($missingKeys.Count -gt 0) {
+        Write-Host "==> Skipped: shared-database credentials not reconciled (missing in [$DbEnvFile]: $($missingKeys -join ', '))."
+    }
+    else {
+        $reconciled = foreach ($line in (Get-Content -Path $dbConfigPath)) {
+            if     ($line -like "DB_USER=*")     { "DB_USER=$($dbEnvValues['DB_USER'])" }
+            elseif ($line -like "DB_PASSWORD=*") { "DB_PASSWORD=$($dbEnvValues['DB_PASSWORD'])" }
+            elseif ($line -like "DB_NAME=*")     { "DB_NAME=$($dbEnvValues['DB_NAME'])" }
+            else                                 { $line }
+        }
+
+        Set-Content -Path $dbConfigPath -Value $reconciled
+        Write-Host "==> Reconciled [DB_USER], [DB_PASSWORD] and [DB_NAME] in [$dbConfigPath] with [$DbEnvFile]."
+    }
 }
 
 # Generates the RS256 key-pair used to sign the CoSMIC session cookie

@@ -80,7 +80,7 @@ async def login(
     request:    Request,
     iam:        IAMProviderDependency
 ) -> RedirectResponse:
-    return await iam.authorize_redirect(
+    return await iam.authorise_redirect(
         request=request,
         redirect_uri=iam.callback_url()
     )
@@ -101,7 +101,7 @@ async def login_provider(
             status_code=status.HTTP_302_FOUND
         )
 
-    return await iam.authorize_redirect(
+    return await iam.authorise_redirect(
         request=request,
         redirect_uri=iam.callback_url()
     )
@@ -217,7 +217,7 @@ async def logout(
     request:    Request,
     iam:        IAMProviderDependency
 ) -> RedirectResponse:
-    refresh_token: str | None = None
+    refresh_token: str | list[str] | None = None
 
     try:
         old_session_token: dict[str, str | list[str] | None] = read_expired_session(request=request)
@@ -225,7 +225,7 @@ async def logout(
             "refresh_token",
             None
         )
-        refresh_token: str | list[str] | None = (
+        refresh_token = (
             stored_refresh_token
             if   (isinstance(stored_refresh_token, str))
             else (None)
@@ -238,7 +238,7 @@ async def logout(
         try:
             await iam.revoke(refresh_token=refresh_token)
 
-        except Exception:  # noqa: BLE001 - logout must never trap the user
+        except Exception: # noqa: BLE001 - logout must never trap the user
             pass
 
     id_token: str | None = request.session.pop(
@@ -318,7 +318,7 @@ async def refresh(
 
                 claims = iam.claims_from_user_info(user_info=user_info)
 
-            except Exception:  # noqa: BLE001 - fall back to the current session
+            except Exception: # noqa: BLE001 - fall back to the current session
                 claims = None
 
         if (
@@ -327,23 +327,23 @@ async def refresh(
             not claims.sub
         ):
             claims = NormalisedClaims(
-                provider=old_session_token.get(
+                provider=old_session_token.get( # pyright: ignore[reportArgumentType]
                     "provider",
                     "keycloak"
                 ),
-                sub=old_session_token.get(
+                sub=old_session_token.get( # pyright: ignore[reportArgumentType]
                     "sub",
                     None
                 ),
-                email=old_session_token.get(
+                email=old_session_token.get( # pyright: ignore[reportArgumentType]
                     "email",
                     None
                 ),
-                name=old_session_token.get(
+                name=old_session_token.get( # pyright: ignore[reportArgumentType]
                     "name",
                     None
                 ),
-                roles=old_session_token.get(
+                roles=old_session_token.get( # pyright: ignore[reportArgumentType]
                     "roles",
                     []
                 )

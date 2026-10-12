@@ -6,13 +6,14 @@ from fastapi import (
 
 
 ### Type hints ###
+from ...cores.tags import APITag
 
 
 ### Internal modules ###
 
 
 health_router: APIRouter = APIRouter(
-    tags=["Service Endpoints"]
+    tags=[APITag.regular]
 )
 
 
@@ -22,7 +23,7 @@ health_router: APIRouter = APIRouter(
     response_model=None
 )
 async def health() -> dict[str, str]:
-    """Liveness probe for Compose, the platform and any orchestrator."""
+    """Liveness probe all compose files, the platform and any orchestrator."""
     return {
         "status": "ok"
     }

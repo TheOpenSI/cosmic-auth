@@ -11,7 +11,9 @@ from dotenv import dotenv_values
 
 def get_db_env() -> dict[str, str | None]:
     """Load `cores/cosmic_cfg.env` (shared database and application settings)."""
-    env_file: Path = Path(__file__).resolve(strict=True).parent / "cosmic_cfg.env"
+    env_file: Path = Path(__file__).resolve(strict=True).parent.joinpath(
+        "cosmic_cfg.env"
+    )
 
     return dotenv_values(
         dotenv_path=env_file,
@@ -21,7 +23,9 @@ def get_db_env() -> dict[str, str | None]:
 
 def get_auth_env() -> dict[str, str | None]:
     """Load `cores/cosmic_auth.env` (BFF framework, session and Keycloak settings)."""
-    env_file: Path = Path(__file__).resolve(strict=True).parent / "cosmic_auth.env"
+    env_file: Path = Path(__file__).resolve(strict=True).parent.joinpath(
+        "cosmic_auth.env"
+    )
 
     return dotenv_values(
         dotenv_path=env_file,
@@ -29,8 +33,8 @@ def get_auth_env() -> dict[str, str | None]:
     )
 
 
-cosmic_db_configs: dict[str, str | None] = get_db_env()
-cosmic_auth_configs: dict[str, str | None] = get_auth_env()
+cosmic_db_configs:      dict[str, str | None] = get_db_env()
+cosmic_auth_configs:    dict[str, str | None] = get_auth_env()
 
 
 ### BFF Framework ###
@@ -85,6 +89,7 @@ SESSION_KEY_ID: str | None = cosmic_auth_configs.get(
     "SESSION_KEY_ID",
     None
 )
+
 
 ### Starlette SessionMiddleware (holds temporary Authlib OAuth state/nonce) ###
 SESSION_SECRET: str | None = cosmic_auth_configs.get(

@@ -37,7 +37,7 @@ def _load_pem(
 
     if not pem_path.is_file():
         raise SessionKeyError(
-            f"Missing {label} RSA key at '{pem_path}'. Have you tried running `bins\\Setup.ps1` (Windows) or `bins/setup.sh` (Linux/macOS)?"
+            f"Missing {label} RSA key at '{pem_path}'. Have you tried running `bins\\setup.ps1` (Windows) or `bins/setup.sh` (Linux/macOS)?"
         )
 
     return path.read_text(encoding="utf-8")
