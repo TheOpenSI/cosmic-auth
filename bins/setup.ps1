@@ -13,7 +13,6 @@ Set-Location $projectRoot
 Write-Host "==> Creating required directories..."
 
 New-Item -ItemType Directory -Force -Path "docker\secrets" | Out-Null
-New-Item -ItemType Directory -Force -Path "docker\configs" | Out-Null
 New-Item -ItemType Directory -Force -Path "cores" | Out-Null
 New-Item -ItemType Directory -Force -Path "auth" | Out-Null
 
@@ -34,7 +33,7 @@ function Invoke-SafeCopy {
     }
 }
 
-# Backend service (.env)
+# Shared database service (.env)
 foreach ($file in (Get-ChildItem -Path "examples" -Filter "cosmic_cfg*.example.env" -ErrorAction SilentlyContinue))
 {
     $newName = $file.Name -replace "\.example", ""
@@ -48,25 +47,11 @@ foreach ($file in (Get-ChildItem -Path "examples" -Filter "cosmic_auth.example.e
     Invoke-SafeCopy -Source $file.FullName -Destination "auth\$newName"
 }
 
-# PostgreSQL (.txt)
+# Shared database secrets (.txt)
 foreach ($file in (Get-ChildItem -Path "examples" -Filter "postgres_*.example.txt" -ErrorAction SilentlyContinue))
 {
     $newName = $file.Name -replace "\.example", ""
     Invoke-SafeCopy -Source $file.FullName -Destination "docker\secrets\$newName"
-}
-
-# pgAdmin secrets (.txt)
-foreach ($file in (Get-ChildItem -Path "examples" -Filter "pgadmin_*.example.txt" -ErrorAction SilentlyContinue))
-{
-    $newName = $file.Name -replace "\.example", ""
-    Invoke-SafeCopy -Source $file.FullName -Destination "docker\secrets\$newName"
-}
-
-# pgAdmin configs (.json)
-foreach ($file in (Get-ChildItem -Path "examples" -Filter "pgadmin_*.example.json" -ErrorAction SilentlyContinue))
-{
-    $newName = $file.Name -replace "\.example", ""
-    Invoke-SafeCopy -Source $file.FullName -Destination "docker\configs\$newName"
 }
 
 # Keycloak secrets (.txt)
@@ -74,6 +59,41 @@ foreach ($file in (Get-ChildItem -Path "examples" -Filter "keycloak_*.example.tx
 {
     $newName = $file.Name -replace "\.example", ""
     Invoke-SafeCopy -Source $file.FullName -Destination "docker\secrets\$newName"
+}
+
+# Reconcile the shared-database credentials in `cores/cosmic_cfg.env` with the
+# secret files the PostgreSQL container reads, so the Auth service can never
+# drift from the database it talks to. Edit the secrets, not the env file.
+$dbConfigPath = "cores\cosmic_cfg.env"
+$dbSecretMap = [ordered]@{
+    DB_USER     = "docker\secrets\postgres_usr.txt"
+    DB_PASSWORD = "docker\secrets\postgres_pwd.txt"
+    DB_NAME     = "docker\secrets\postgres_db.txt"
+}
+
+$dbSecretValues = @{}
+$missingSecrets = @()
+foreach ($entry in $dbSecretMap.GetEnumerator()) {
+    if (Test-Path $entry.Value) {
+        $dbSecretValues[$entry.Key] = (Get-Content -Path $entry.Value -Raw).Trim()
+    } else {
+        $missingSecrets += $entry.Value
+    }
+}
+
+if ($missingSecrets.Count -gt 0) {
+    Write-Host "==> Skipped: shared-database credentials not reconciled (missing: $($missingSecrets -join ', '))."
+}
+else {
+    $reconciled = foreach ($line in (Get-Content -Path $dbConfigPath)) {
+        if     ($line -like "DB_USER=*")     { "DB_USER=$($dbSecretValues['DB_USER'])" }
+        elseif ($line -like "DB_PASSWORD=*") { "DB_PASSWORD=$($dbSecretValues['DB_PASSWORD'])" }
+        elseif ($line -like "DB_NAME=*")     { "DB_NAME=$($dbSecretValues['DB_NAME'])" }
+        else                                 { $line }
+    }
+
+    Set-Content -Path $dbConfigPath -Value $reconciled
+    Write-Host "==> Reconciled [DB_USER], [DB_PASSWORD] and [DB_NAME] in [$dbConfigPath] with [docker\secrets\postgres_*.txt]."
 }
 
 # Generates the RS256 key-pair used to sign the CoSMIC session cookie
