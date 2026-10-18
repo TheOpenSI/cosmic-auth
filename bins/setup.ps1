@@ -12,9 +12,7 @@ Set-Location $projectRoot
 
 # Similar concept to the positional <db-env-file> argument in the Bash version:
 # the `.env` file the shared-database credentials are reconciled from.
-param(
-    [string] $DbEnvFile = "..\cosmic-db\cores\cosmic_cfg.env"
-)
+$DbEnvFile = "..\cosmic-db\cores\cosmic_cfg.env"
 
 Write-Host "==> Creating required directories..."
 
