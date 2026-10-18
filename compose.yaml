@@ -1,0 +1,68 @@
+name: OpenSI-CoSMIC
+
+services:
+  keycloak:
+    container_name: cosmic-keycloak
+    restart: unless-stopped
+    build:
+      # NOTE:
+      # Start from within `docker/` directory directly so its special context
+      # (realm export & the baked secrets) never enter the FastAPI image build
+      # context (see .dockerignore).
+      context: ./docker
+      dockerfile: ./dockerfiles/keycloak.Dockerfile
+    volumes:
+      - type: volume
+        source: cosmic-keycloak-data
+        target: /opt/keycloak/data
+    ports:
+      - name: keycloak
+        target: 8080
+        host_ip: 127.0.0.1
+        published: "8080"
+        protocol: tcp
+        app_protocol: http
+        mode: host
+    networks:
+      - cosmic-backend
+
+  auth:
+    container_name: cosmic-keycloak-fastapi
+    restart: unless-stopped
+    depends_on:
+      keycloak:
+        condition: service_started
+        required: true
+    build:
+      context: ./
+      dockerfile: ./docker/dockerfiles/fastapi.Dockerfile
+    volumes:
+      - type: bind
+        source: ./
+        target: /app
+      - type: volume
+        source: cosmic-auth-fastapi-venv
+        target: /app/.venv
+    ports:
+      - name: cosmic-keycloak-fastapi
+        target: 8081
+        host_ip: 127.0.0.1
+        published: "8081"
+        protocol: tcp
+        app_protocol: http
+        mode: host
+    networks:
+      - cosmic-backend
+
+volumes:
+  cosmic-auth-fastapi-venv:
+    name: cosmic-auth-ignore
+
+  # NOTE: persists Keycloak users/sessions across compose down/up (dev)
+  cosmic-keycloak-data:
+    name: cosmic-keycloak-data
+
+networks:
+  cosmic-backend:
+    name: cosmic_net
+    external: true

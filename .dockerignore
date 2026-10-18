@@ -1,0 +1,14 @@
+.git/
+.venv/
+docker/
+!docker/secrets/*.pem
+examples/
+.dockerignore
+.gitattributes
+.gitignore
+CONTRIBUTING
+*.md*
+!LICENSE
+*compose.yaml*
+*compose.yml*
+__pycache__
