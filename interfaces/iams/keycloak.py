@@ -16,6 +16,9 @@ the container.
 
 
 ### Core modules ###
+from base64 import urlsafe_b64decode
+from binascii import Error
+from json import loads
 from urllib.parse import urlencode
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from authlib.integrations.starlette_client import OAuth
@@ -75,6 +78,83 @@ def keycloak_logout_url() -> str:
     return f"{KEYCLOAK_PUBLIC_URL}{_KEYCLOAK_REALM_PATH}/logout"
 
 
+def _access_token_claims(tokens: dict[str, Any]) -> dict[str, Any]:
+    """
+    Read the claims Keycloak puts on its access token.
+
+    Keycloak keeps realm roles under ``realm_access`` on the access token. The
+    ID token/user info payload does not always include that claim, so merge it in
+    before normalising the CoSMIC claims.
+    """
+    access_token: str | None = tokens.get("access_token")
+
+    if not isinstance(access_token, str):
+        return {}
+
+    try:
+        (
+            _,
+            payload,
+            _
+        ) = access_token.split(".")
+
+        payload += "=" * (-len(payload) % 4)
+        claims: Any = loads(s=urlsafe_b64decode(s=payload.encode("ascii")))
+
+    except (
+        ValueError,
+        UnicodeDecodeError,
+        Error
+    ):
+        return {}
+
+    return (
+        claims
+        if   (isinstance(claims, dict))
+        else ({})
+    )
+
+
+def _merge_access_token_claims(
+    user_info: Mapping[str, Any],
+    tokens: dict[str, Any]
+) -> dict[str, Any]:
+    merged:         dict[str, Any] = dict(user_info)
+    access_claims:  dict[str, Any] = _access_token_claims(tokens=tokens)
+
+    if (
+        not merged.get(
+            "realm_access",
+            None
+        )
+        and access_claims.get(
+            "realm_access",
+            None
+        )
+    ):
+        merged["realm_access"] = access_claims["realm_access"]
+
+    for claim in (
+        "sub",
+        "email",
+        "name",
+        "preferred_username"
+    ):
+        if (
+            not merged.get(
+                claim,
+                None
+            )
+            and access_claims.get(
+                claim,
+                None
+            )
+        ):
+            merged[claim] = access_claims[claim]
+
+    return merged
+
+
 oauth: OAuth = OAuth()
 
 
@@ -115,7 +195,7 @@ class KeycloakIAM(IAMProvider):
         self,
         request: Request
     ) -> dict[str, Any]:
-        return await oauth.keycloak.authorize_access_token(
+        tokens: dict[str, Any] = await oauth.keycloak.authorize_access_token(
             request,
             claims_options={
                 "iss": {
@@ -124,15 +204,26 @@ class KeycloakIAM(IAMProvider):
                 }
             }
         )
+        tokens["userinfo"] = _merge_access_token_claims(
+            user_info=tokens.get("userinfo") or {},
+            tokens=tokens
+        )
+
+        return tokens
 
     @override
     async def parse_id_token(
         self,
         tokens: dict[str, Any]
     ) -> dict[str, Any]:
-        return await oauth.keycloak.parse_id_token(
+        user_info: dict[str, Any] = await oauth.keycloak.parse_id_token(
             tokens,
             nonce=None
+        )
+
+        return _merge_access_token_claims(
+            user_info=user_info,
+            tokens=tokens
         )
 
     @override

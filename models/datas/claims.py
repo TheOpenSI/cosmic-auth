@@ -4,10 +4,7 @@ The single CoSMIC claim shape produced from an IdP login.
 
 
 ### Core modules ###
-from dataclasses import (
-    dataclass,
-    field
-)
+from pydantic import BaseModel
 
 
 ### Type hints ###
@@ -16,10 +13,9 @@ from dataclasses import (
 ### Internal modules ###
 
 
-@dataclass
-class NormalisedClaims:
+class NormalisedClaims(BaseModel):
     provider:   str
     sub:        str
-    email:      str | None  = None
-    name:       str | None  = None
-    roles:      list[str]   = field(default_factory=list[str])
+    email:      str
+    name:       str
+    roles:      list[str]

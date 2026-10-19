@@ -22,6 +22,28 @@
 		"ssl": "false"
 
 	},
+	"defaultRole": {
+		"id": "0c26d59e-fe71-48df-8079-20745b2a8ef4",
+		"name": "default-roles-cosmic",
+		"description": "${role_default-roles}",
+		"composite": true,
+		"composites": {
+			"realm": [
+				"offline_access",
+				"uma_authorization",
+				"user"
+			],
+			"client": {
+				"account": [
+					"manage-account",
+					"manage-account-links",
+					"view-profile"
+				]
+			}
+		},
+		"clientRole": false,
+		"containerId": "cosmic"
+	},
 	"roles": {
 		"realm": [
 			{ "name": "admin" },

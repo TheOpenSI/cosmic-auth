@@ -130,3 +130,10 @@ IAM_PROVIDER: str | None = cosmic_auth_configs.get(
     "IAM_PROVIDER",
     "keycloak"
 )
+
+
+### Other configs ###
+SYSTEM_ROLES: tuple[str, ...] = (
+    "admin",
+    "user"
+)
