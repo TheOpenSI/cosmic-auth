@@ -19,8 +19,8 @@ from ...models.datas.roles import (
 )
 from ...models.responses.roles import (
     RoleCreateResponse,
-    RoleDeleteResponse,
-    RoleUpdateResponse
+    RoleUpdateResponse,
+    RoleDeleteResponse
 )
 
 

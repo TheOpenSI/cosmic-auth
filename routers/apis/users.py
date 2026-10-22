@@ -19,8 +19,8 @@ from ...cores.db import SessionDependency
 from ...interfaces.iams import IAMProviderDependency
 from ...models.datas.users import UserUpdate
 from ...models.responses.users import (
-    UserDeleteResponse,
-    UserUpdateResponse
+    UserUpdateResponse,
+    UserDeleteResponse
 )
 from ...models.tables import (
     Roles,

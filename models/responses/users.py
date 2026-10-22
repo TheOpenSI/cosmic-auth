@@ -10,7 +10,7 @@ from typing import ClassVar
 
 
 ### Internal modules ###
-from ..datas.users import UserIAMResult
+from ..datas.users import UserDelete, UserPublic
 
 
 """
@@ -20,11 +20,11 @@ class UserUpdateResponse(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     success:    bool
-    updated:    UserIAMResult
+    updated:    UserPublic
 
 
 class UserDeleteResponse(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     success:    bool
-    deleted:    UserIAMResult
+    deleted:    UserDelete

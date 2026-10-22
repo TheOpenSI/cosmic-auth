@@ -15,6 +15,13 @@ from typing import ClassVar
 ### Internal modules ###
 
 
+class UserPublic(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    user_id:        UUID7
+    iam_user_id:    str | None = None
+
+
 class UserUpdate(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
@@ -23,8 +30,7 @@ class UserUpdate(BaseModel):
     email:      EmailStr | None     = None
 
 
-class UserIAMResult(BaseModel):
+class UserDelete(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
-    user_id:        UUID7
-    iam_user_id:    str | None = None
+    user_id:    UUID7

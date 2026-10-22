@@ -10,7 +10,7 @@ from typing import ClassVar
 
 
 ### Internal modules ###
-from ..datas.roles import RoleIAMResult
+from ..datas.roles import RoleDelete, RolePublic
 
 
 """
@@ -20,18 +20,18 @@ class RoleCreateResponse(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     success:    bool
-    created:    RoleIAMResult
+    created:    RolePublic
 
 
 class RoleUpdateResponse(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     success:    bool
-    updated:    RoleIAMResult
+    updated:    RolePublic
 
 
 class RoleDeleteResponse(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     success:    bool
-    deleted:    RoleIAMResult
+    deleted:    RoleDelete
