@@ -18,7 +18,10 @@ from abc import (
 
 
 ### Type hints ###
-from collections.abc import Mapping
+from collections.abc import (
+    Collection,
+    Mapping
+)
 from typing import (
     Any,
     ClassVar
@@ -76,6 +79,57 @@ class IAMProvider(ABC):
         refresh_token: str
     ) -> None:
         """Best-effort end of the provider session behind that refresh token."""
+
+    @abstractmethod
+    async def update_user(
+        self,
+        subject: str,
+        *,
+        email:           str | None = None,
+        name:            str | None = None,
+        role:            str | None = None,
+        role_desc:       str | None = None,
+        managed_roles:   Collection[str] = ()
+    ) -> None:
+        """
+        Update an IAM-backed user.
+
+        The IAM is the source of truth, so every field is pushed here before the
+        local database mirror is written. ``managed_roles`` lists the role names
+        this platform owns; only those role mappings are replaced.
+        """
+
+    @abstractmethod
+    async def delete_user(
+        self,
+        subject: str
+    ) -> None:
+        """Delete an IAM-backed user (idempotent when it is already gone)."""
+
+    @abstractmethod
+    async def create_role(
+        self,
+        name: str,
+        desc: str | None = None
+    ) -> None:
+        """Ensure a role exists in the IAM, creating it when necessary."""
+
+    @abstractmethod
+    async def update_role(
+        self,
+        current_name:   str,
+        *,
+        name:           str | None = None,
+        desc:           str | None = None
+    ) -> None:
+        """Update/rename a role in the IAM (idempotent for retried renames)."""
+
+    @abstractmethod
+    async def delete_role(
+        self,
+        name: str
+    ) -> None:
+        """Delete an IAM role (idempotent when it is already gone)."""
 
     @abstractmethod
     def logout_redirect(

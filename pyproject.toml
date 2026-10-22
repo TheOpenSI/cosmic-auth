@@ -10,6 +10,7 @@ dependencies = [
     "psycopg>=3.3.3",
     "sqlmodel>=0.0.37",
     "authlib>=1.8.0",
+    "httpx>=0.28.1",
     "httpx2>=2.13.1",
     # NOTE: Required by Starlette's SessionMiddleware, which Authlib uses to
     # keep the temporary OAuth state/nonce.
