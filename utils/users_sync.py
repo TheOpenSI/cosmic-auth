@@ -12,6 +12,7 @@ from sqlmodel import select
 
 
 ### Type hints ###
+from collections.abc import Collection
 
 
 ### Internal modules ###
@@ -63,22 +64,63 @@ def _user_sync(
         user.role_id = role.id
 
 
-def platform_role(roles: list[str]) -> str:
+def platform_role(
+    roles:          list[str],
+    known_roles:    Collection[str] | None = None
+) -> str:
     """Pick the CoSMIC platform role from Keycloak's realm roles."""
     normalised_roles: set[str] = {
         role.strip().lower()
         for role in roles
         if isinstance(role, str)
     }
+    available_roles: set[str] = {
+        role.strip().lower()
+        for role in (known_roles or SYSTEM_ROLES)
+        if (
+            isinstance(role, str)
+            and
+            role.strip()
+        )
+    }
+
+    # Admin always wins so a user carrying both a custom role and the composite
+    # `admin` role keeps full access.
+    if (
+        "admin" in normalised_roles
+        and
+        "admin" in available_roles
+    ):
+        return "admin"
+
+    # A custom role is an explicit assignment, so it takes precedence over the
+    # default `user` role that Keycloak adds through `default-roles-cosmic`.
+    for role in sorted(available_roles - set(SYSTEM_ROLES)):
+        if role in normalised_roles:
+            return role
+
+    if (
+        "user" in normalised_roles
+        and
+        "user" in available_roles
+    ):
+        return "user"
 
     for role in SYSTEM_ROLES:
-        if role in normalised_roles:
+        if (
+            role in normalised_roles
+            and
+            role in available_roles
+        ):
             return role
 
     return "user"
 
 
-def normalise_claims_roles(claims: NormalisedClaims) -> str:
+def normalise_claims_roles(
+    claims:         NormalisedClaims,
+    known_roles:    Collection[str] | None = None
+) -> str:
     """
     Make sure the claim list always carries a platform role.
 
@@ -87,7 +129,10 @@ def normalise_claims_roles(claims: NormalisedClaims) -> str:
     Treating them as `user` keeps the current session on `/me` contract
     consistent.
     """
-    role: str = platform_role(roles=claims.roles)
+    role: str = platform_role(
+        roles=claims.roles,
+        known_roles=known_roles
+    )
     existing_roles: set[str] = {
         role_name.strip().lower()
         for role_name in claims.roles
@@ -115,7 +160,15 @@ def ensure_user(
 
     role: Roles = _db_role(
         session=session,
-        name=normalise_claims_roles(claims=claims)
+        name=normalise_claims_roles(
+            claims=claims,
+            known_roles={
+                role_row.name
+                for role_row in session.exec(
+                    statement=select(Roles)
+                ).all()
+            }
+        )
     )
 
     identity: UserIdentities | None = session.exec(

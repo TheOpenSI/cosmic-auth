@@ -14,5 +14,7 @@ https://fastapi.tiangolo.com/tutorial/path-operation-configuration/?h=enum#tags-
 """
 class APITag(Enum):
     """docstring for APITag."""
-    auth    = "Auths API Endpoint"
-    regular = "Auths Regular Endpoint"
+    auth        = "Auths API Endpoint"
+    role        = "IAM Roles API Endpoint"
+    user        = "IAM Users API Endpoint"
+    regular     = "Auths Regular Endpoint"

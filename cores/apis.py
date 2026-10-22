@@ -20,6 +20,8 @@ from ..utils.keys import (
     public_key
 )
 from ..routers.apis.auth import auth_v1_router
+from ..routers.apis.roles import roles_v1_router
+from ..routers.apis.users import users_v1_router
 from ..routers.regulars.health import health_router
 from ..routers.regulars.jwks import jwks_router
 
@@ -56,6 +58,8 @@ app.add_middleware(
     allow_origins=[str(FRONTEND_URL)],
     allow_methods=[
         "POST",
+        "PATCH",
+        "DELETE",
         "GET"
     ],
     allow_headers=["*"],
@@ -80,3 +84,5 @@ app.include_router(router=jwks_router)
 
 # API endpoints (V1)
 app.include_router(router=auth_v1_router)
+app.include_router(router=users_v1_router)
+app.include_router(router=roles_v1_router)
