@@ -20,7 +20,9 @@ cosmic-auth/
 │   ├── iams/authentik.py   # Authentik adapter (backed by Authlib) supplied through FastAPI DI
 │   └── idps/               # IdP implementations (brokered within Keycloak except certain circumstances)
 ├── routers/                # HTTP surface
-│   ├── apis/auth.py        # API endpoints (`/api/v1/auth/*`)
+│   ├── apis/auth.py        # Auth endpoints (`/api/v1/auth/*`)
+│   ├── apis/users.py       # IAM user API (`/api/v1/users/*`)
+│   ├── apis/roles.py       # IAM role API (`/api/v1/roles/*`)
 │   └── regulars/           # Regular endpoints (`/health`, `/jwks.json`)
 ├── utils/                  # Helper functions and shared utility scripts
 ├── bins/                   # Helper scripts, 3rd vendor binaries, etc
@@ -60,6 +62,49 @@ This repository is **not** the owner of the CoSMIC PostgreSQL schema *(it should
 1. Both repositories attach to the same `cosmic_net` Docker network. Therefore, we must start `cosmic-db` Docker containers (`docker compose up -d database`) first before starting this one.
 
 2. This micro-service listens on port `8081` and publishes the JWKS info at `http://localhost:8081/jwks.json` for other micro-services to discover. It also answers a liveness probe at `http://localhost:8081/health`.
+
+---
+# IAM management API
+
+`cosmic-db` keeps the public `PATCH /api/v1/users/{id}`, `DELETE /api/v1/users/{id}`
+and the Roles API, but the IAM is always updated first. The database calls these
+endpoints before writing its fallback row:
+
+| Method   | Endpoint                          | Purpose                           |
+| -------- | --------------------------------- | --------------------------------- |
+| `PATCH`  | `/api/v1/users/{user_id}`         | Update email/name/role in the IAM |
+| `DELETE` | `/api/v1/users/{user_id}`         | Delete the IAM-backed user        |
+| `POST`   | `/api/v1/roles`                   | Create/ensure an IAM role         |
+| `PATCH`  | `/api/v1/roles/{role_name}`       | Rename/update an IAM role         |
+| `DELETE` | `/api/v1/roles/{role_name}`       | Delete an IAM role                |
+
+> [!NOTE]
+> These endpoints are currently unauthenticated so they can be exercised from the
+> FastAPI docs page during development. AuthN/AuthZ will be added in a dedicated
+> ticket; until then the shared Docker network is the only boundary.
+
+## Keycloak service account
+
+The Admin REST calls do **not** use the Keycloak master admin account. A dedicated
+confidential client, `cosmic-auth-service`, is defined in
+`docker/keycloak/cosmic-realm.json` with a service account carrying the
+`realm-management` roles `manage-users`, `view-users`, `query-users`,
+`manage-realm` and `view-realm`.
+
+- Client id: `KEYCLOAK_SERVICE_ACCOUNT_CLIENT_ID` (default `cosmic-auth-service`)
+- Client secret: `KEYCLOAK_SERVICE_ACCOUNT_CLIENT_SECRET`, or the baked file
+  `docker/secrets/keycloak_service_account_client_secret.txt`
+
+> [!IMPORTANT]
+> The realm export only runs when the `cosmic` realm is first imported. On an
+> existing Keycloak volume, remove the `cosmic-keycloak-data` volume (or add the
+> client/roles manually in the admin console) so the new service account is
+> created. Losing the volume also removes the existing Keycloak users, so take a
+> backup first if they matter.
+
+A custom DB role is pushed into Keycloak before it is stored locally. Assigning a
+custom role to a user also ensures the realm role exists, so the IAM stays the
+source of truth for every role the platform exposes.
 
 ---
 # Quick Start
@@ -155,7 +200,7 @@ Then, copy the following files from the `examples/` directory to the following l
 - Generate the RS256 session keypair used to sign the CoSMIC session cookie using either `.\bins\setup.ps1` (Windows) or `./bins/setup.sh` (Linux/macOS).
 
 3. **Keycloak service**:
-- `examples/keycloak_*.example.txt` &rarr; `docker/secrets/keycloak_*.txt` (contains Keycloak admin credentials, the confidential client secret, the seeded test user, and the Google/Microsoft client credentials brokered by Keycloak).
+- `examples/keycloak_*.example.txt` &rarr; `docker/secrets/keycloak_*.txt` (contains Keycloak admin credentials, the confidential client secret, the service-account client secret, the seeded test user, and the Google/Microsoft client credentials brokered by Keycloak).
 
 > [!TIP]
 > Before finalising these files, review and adjust default values (Keep default setting if you're unsure about whether or not to modify it):
@@ -307,7 +352,7 @@ After running `.\bins\setup.ps1` (Windows) or `./bins/setup.sh` (Linux/MacOS), t
 
 - `cores/cosmic_auth.env` (Keycloak, Authlib session, RS256 session-key settings and the `IAM_PROVIDER` selection used by the auth service)
 - `cores/cosmic_cfg.env` (connection settings for the shared PostgreSQL database — `DB_USER`/`DB_PASSWORD`/`DB_NAME` are reconciled from the database owner's `.env` on every run)
-- `docker/secrets/keycloak_*.txt` (Keycloak admin credentials, the confidential client secret, the seeded test user and the Google/Microsoft broker credentials)
+- `docker/secrets/keycloak_*.txt` (Keycloak admin credentials, the confidential client secret, the service-account client secret, the seeded test user and the Google/Microsoft broker credentials)
 - `docker/secrets/cosmic_private_session.pem` & `docker/secrets/cosmic_public_session.pem` (the RS256 key-pair that signs the CoSMIC session cookie)
 
 Open `cores/cosmic_auth.env` and replace the defaults below:
@@ -404,4 +449,17 @@ SESSION_COOKIE_NAME=cosmic_session
 SESSION_MAX_AGE=900
 SESSION_REFRESH_TOKEN_MAX_AGE=86400
 SESSION_OAUTH_COOKIE=cosmic_oauth_session
+```
+
+## **Keycloak service account**
+
+```txt
+KEYCLOAK_SERVICE_ACCOUNT_CLIENT_ID=cosmic-auth-service
+KEYCLOAK_SERVICE_ACCOUNT_CLIENT_SECRET=<optional; defaults to the baked secret file>
+```
+
+The matching database value lives in `cosmic-db/cores/cosmic_cfg.env`:
+
+```txt
+COSMIC_AUTH_URL=http://cosmic-keycloak-fastapi:8081
 ```
