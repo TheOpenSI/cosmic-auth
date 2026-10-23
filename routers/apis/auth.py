@@ -1,6 +1,7 @@
 ### Core modules ###
 from httpx import HTTPError
 from authlib.integrations.base_client import OAuthError
+from sqlmodel import select
 from fastapi import (
     APIRouter,
     HTTPException,
@@ -31,7 +32,11 @@ from ...utils.session import (
     unauthorised_cleared
 )
 from ...models.datas.claims import NormalisedClaims
-from ...models.tables import Users
+from ...models.tables import (
+    Roles,
+    UserIdentities,
+    Users
+)
 from ...interfaces.iams import IAMProviderDependency
 from ...utils.users_sync import ensure_user
 from ...cores.db import SessionDependency
@@ -67,9 +72,40 @@ _ALREADY_SIGNED_IN_TEMPLATE: str = """
 """
 
 
-# Google & Microsoft are brokered inside Keycloak, so there is no direct-to-IdP
-# path to expose even if an old bookmark still points at one.
+# Google & Microsoft are brokered inside IAM, so there is no direct-to-IdP path
+# to expose even if an old bookmark still points at one.
 _LOGIN_PATH: str = "/api/v1/auth/login"
+
+
+def _text_claim(value: str | list[str] | None) -> str:
+    return (
+        value.strip()
+        if   (isinstance(value, str))
+        else ("")
+    )
+
+
+def _roles_claim(value: str | list[str] | None) -> list[str]:
+    if not isinstance(value, list):
+        return []
+
+    return [
+        role.strip()
+        for role in value
+        if isinstance(role, str)
+    ]
+
+
+def _roles_sync(
+    db_role: str,
+    keycloak_role: list[str]
+) -> bool:
+    normalised_roles: set[str] = {
+        role.strip().lower()
+        for role in keycloak_role
+    }
+
+    return db_role.strip().lower() in normalised_roles
 
 
 @auth_v1_router.get(
@@ -181,8 +217,7 @@ async def callback_provider(
         )
 
         # CoSMIC session is the single source of truth for `/me`, `/refresh` &
-        # `/logout` endpoints. The Keycloak refresh token travels inside the JWT
-        # token
+        # `/logout` endpoints. The IAM refresh token travels inside the JWT token
         set_session_cookie(
             response=response,
             claims=claims,
@@ -349,6 +384,13 @@ async def refresh(
                 )
             )
 
+        # Keep the db records and normalised roles aligned with IAM before
+        # issuing a fresh session cookie
+        ensure_user(
+            session=session,
+            claims=claims
+        )
+
         new_refresh: str | None = tokens.get(
             "refresh_token",
             refresh_token
@@ -394,12 +436,13 @@ async def refresh(
 
 @auth_v1_router.get(
     path="/me",
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    response_model=NormalisedClaims
 )
 async def me(
     request: Request,
     session: SessionDependency
-) -> JSONResponse:
+) -> Any:
     payload: dict[str, str | list[str] | None] = read_current_session(request=request)
     user_id: str | list[str] | None = payload.get(
         "user_id",
@@ -407,39 +450,97 @@ async def me(
     )
 
     if (
+        not isinstance(user_id, str)
+        or
         not user_id
-        or session.get(
-            entity=Users,
-            ident=UUID(str(user_id))
-        ) is None
+    ):
+        return unauthorised_cleared()
+
+    user: Users | None = session.get(
+        entity=Users,
+        ident=UUID(user_id)
+    )
+
+    if user is None:
+        return unauthorised_cleared()
+
+    sub: str = _text_claim(
+        payload.get(
+            "sub",
+            None
+        )
+    )
+    provider: str = _text_claim(
+        payload.get(
+            "provider",
+            None
+        )
+    )
+    email: str = _text_claim(
+        payload.get(
+            "email",
+            None
+        )
+    )
+    name: str = _text_claim(
+        payload.get(
+            "name",
+            None
+        )
+    )
+    keycloak_role: list[str] = _roles_claim(
+        payload.get(
+            "roles",
+            None
+        )
+    )
+
+    identity: UserIdentities | None = session.exec(
+        select(UserIdentities).where(
+            UserIdentities.user_id == user.id,
+            UserIdentities.provider == provider,
+            UserIdentities.sub == sub
+        )
+    ).first()
+
+    db_role: Roles | None = session.get(
+        entity=Roles,
+        ident=user.role_id
+    )
+
+    if (
+        not sub
+        or
+        not provider
+        or
+        identity is None
+        or
+        db_role is None
+        or
+        not _roles_sync(
+            db_role=db_role.name,
+            keycloak_role=keycloak_role
+        )
+        or (
+            email
+            and
+            (user.email or "").strip().lower() != email.lower()
+        )
+        or (
+            name
+            and
+            (user.name or "").strip() != name
+        )
     ):
         return unauthorised_cleared()
 
     return JSONResponse(
         {
-            "user_id": payload.get(
-                "user_id",
-                None
-            ),
-            "sub": payload.get(
-                "sub",
-                None
-            ),
-            "email": payload.get(
-                "email",
-                None
-            ),
-            "name": payload.get(
-                "name",
-                None
-            ),
-            "roles": payload.get(
-                "roles",
-                []
-            ),
-            "provider": payload.get(
-                "provider",
-                None
-            )
+            "user_id":  user_id,
+            "sub":      sub,
+            "email":    email or None,
+            "name":     name or None,
+            "roles":    keycloak_role,
+            "provider": provider
         }
     )
