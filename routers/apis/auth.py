@@ -72,8 +72,8 @@ _ALREADY_SIGNED_IN_TEMPLATE: str = """
 """
 
 
-# Google & Microsoft are brokered inside Keycloak, so there is no direct-to-IdP
-# path to expose even if an old bookmark still points at one.
+# Google & Microsoft are brokered inside IAM, so there is no direct-to-IdP path
+# to expose even if an old bookmark still points at one.
 _LOGIN_PATH: str = "/api/v1/auth/login"
 
 
@@ -217,8 +217,7 @@ async def callback_provider(
         )
 
         # CoSMIC session is the single source of truth for `/me`, `/refresh` &
-        # `/logout` endpoints. The Keycloak refresh token travels inside the JWT
-        # token
+        # `/logout` endpoints. The IAM refresh token travels inside the JWT token
         set_session_cookie(
             response=response,
             claims=claims,
@@ -385,7 +384,7 @@ async def refresh(
                 )
             )
 
-        # Keep the local row and normalised roles aligned with Keycloak before
+        # Keep the db records and normalised roles aligned with IAM before
         # issuing a fresh session cookie
         ensure_user(
             session=session,

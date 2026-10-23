@@ -64,49 +64,6 @@ This repository is **not** the owner of the CoSMIC PostgreSQL schema *(it should
 2. This micro-service listens on port `8081` and publishes the JWKS info at `http://localhost:8081/jwks.json` for other micro-services to discover. It also answers a liveness probe at `http://localhost:8081/health`.
 
 ---
-# IAM management API
-
-`cosmic-db` keeps the public `PATCH /api/v1/users/{id}`, `DELETE /api/v1/users/{id}`
-and the Roles API, but the IAM is always updated first. The database calls these
-endpoints before writing its fallback row:
-
-| Method   | Endpoint                          | Purpose                           |
-| -------- | --------------------------------- | --------------------------------- |
-| `PATCH`  | `/api/v1/users/{user_id}`         | Update email/name/role in the IAM |
-| `DELETE` | `/api/v1/users/{user_id}`         | Delete the IAM-backed user        |
-| `POST`   | `/api/v1/roles`                   | Create/ensure an IAM role         |
-| `PATCH`  | `/api/v1/roles/{role_name}`       | Rename/update an IAM role         |
-| `DELETE` | `/api/v1/roles/{role_name}`       | Delete an IAM role                |
-
-> [!NOTE]
-> These endpoints are currently unauthenticated so they can be exercised from the
-> FastAPI docs page during development. AuthN/AuthZ will be added in a dedicated
-> ticket; until then the shared Docker network is the only boundary.
-
-## Keycloak service account
-
-The Admin REST calls do **not** use the Keycloak master admin account. A dedicated
-confidential client, `cosmic-auth-service`, is defined in
-`docker/keycloak/cosmic-realm.json` with a service account carrying the
-`realm-management` roles `manage-users`, `view-users`, `query-users`,
-`manage-realm` and `view-realm`.
-
-- Client id: `KEYCLOAK_SERVICE_ACCOUNT_CLIENT_ID` (default `cosmic-auth-service`)
-- Client secret: `KEYCLOAK_SERVICE_ACCOUNT_CLIENT_SECRET`, or the baked file
-  `docker/secrets/keycloak_service_account_client_secret.txt`
-
-> [!IMPORTANT]
-> The realm export only runs when the `cosmic` realm is first imported. On an
-> existing Keycloak volume, remove the `cosmic-keycloak-data` volume (or add the
-> client/roles manually in the admin console) so the new service account is
-> created. Losing the volume also removes the existing Keycloak users, so take a
-> backup first if they matter.
-
-A custom DB role is pushed into Keycloak before it is stored locally. Assigning a
-custom role to a user also ensures the realm role exists, so the IAM stays the
-source of truth for every role the platform exposes.
-
----
 # Quick Start
 
 Before setting up, decide which one is the correct purpose when you get to this modular repository:
@@ -449,17 +406,4 @@ SESSION_COOKIE_NAME=cosmic_session
 SESSION_MAX_AGE=900
 SESSION_REFRESH_TOKEN_MAX_AGE=86400
 SESSION_OAUTH_COOKIE=cosmic_oauth_session
-```
-
-## **Keycloak service account**
-
-```txt
-KEYCLOAK_SERVICE_ACCOUNT_CLIENT_ID=cosmic-auth-service
-KEYCLOAK_SERVICE_ACCOUNT_CLIENT_SECRET=<optional; defaults to the baked secret file>
-```
-
-The matching database value lives in `cosmic-db/cores/cosmic_cfg.env`:
-
-```txt
-COSMIC_AUTH_URL=http://cosmic-keycloak-fastapi:8081
 ```

@@ -53,7 +53,11 @@ def read_secret(name: str) -> str | None:
 
     value: str = secret_file.read_text(encoding="utf-8").strip()
 
-    return (value or None)
+    return (
+        value
+        or
+        None
+    )
 
 
 cosmic_db_configs:      dict[str, str | None] = get_db_env()
@@ -146,16 +150,13 @@ KEYCLOAK_CLIENT_SECRET: str | None = cosmic_auth_configs.get(
     "KEYCLOAK_CLIENT_SECRET",
     None
 )
-
 # Dedicated confidential client used for Keycloak Admin REST calls. It is
 # defined in `docker/keycloak/cosmic-realm.json` with a service account carrying
 # the `realm-management` roles it needs (`manage-users`, `view-users`,
 # `query-users`, `manage-realm`, `view-realm`).
-KEYCLOAK_SERVICE_ACCOUNT_CLIENT_ID: str = str(
-    cosmic_auth_configs.get(
-        "KEYCLOAK_SERVICE_ACCOUNT_CLIENT_ID",
-        "cosmic-auth-service"
-    )
+KEYCLOAK_SERVICE_ACCOUNT_CLIENT_ID: str | None = cosmic_auth_configs.get(
+    "KEYCLOAK_SERVICE_ACCOUNT_CLIENT_ID",
+    "cosmic-auth-service"
 )
 KEYCLOAK_SERVICE_ACCOUNT_CLIENT_SECRET: str | None = (
     cosmic_auth_configs.get(
@@ -178,4 +179,16 @@ IAM_PROVIDER: str | None = cosmic_auth_configs.get(
 SYSTEM_ROLES: tuple[str, ...] = (
     "admin",
     "user"
+)
+ALLOWED_ORIGINS: tuple[str, ...] = (
+    str(FRONTEND_URL),
+)
+ALLOWED_METHODS: tuple[str, ...] = (
+    "GET",
+    "POST",
+    "PATCH",
+    "DELETE"
+)
+ALLOWED_HEADERS: tuple[str, ...] = (
+    "*",
 )

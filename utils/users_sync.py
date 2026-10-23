@@ -53,7 +53,7 @@ def _user_sync(
     claims: NormalisedClaims,
     role: Roles
 ) -> None:
-    """Mirror the Keycloak identity/role onto the local user row."""
+    """Mirror the IAM identity/role onto the db user records."""
     if claims.name:
         user.name = claims.name
 
@@ -68,7 +68,7 @@ def platform_role(
     roles:          list[str],
     known_roles:    Collection[str] | None = None
 ) -> str:
-    """Pick the CoSMIC platform role from Keycloak's realm roles."""
+    """Pick CoSMIC role(s) from IAM's role(s)."""
     normalised_roles: set[str] = {
         role.strip().lower()
         for role in roles
@@ -85,7 +85,7 @@ def platform_role(
     }
 
     # Admin always wins so a user carrying both a custom role and the composite
-    # `admin` role keeps full access.
+    # `admin` role keeps full access
     if (
         "admin" in normalised_roles
         and
@@ -94,7 +94,7 @@ def platform_role(
         return "admin"
 
     # A custom role is an explicit assignment, so it takes precedence over the
-    # default `user` role that Keycloak adds through `default-roles-cosmic`.
+    # default `user` role that IAM adds through `default-roles-cosmic`.
     for role in sorted(available_roles - set(SYSTEM_ROLES)):
         if role in normalised_roles:
             return role
@@ -122,9 +122,9 @@ def normalise_claims_roles(
     known_roles:    Collection[str] | None = None
 ) -> str:
     """
-    Make sure the claim list always carries a platform role.
+    Make sure the claim list always carries a role.
 
-    Keycloak returns the realm roles on the access token, but users registered
+    IAM returns the role on the access token, but users registered
     before the `user` default role was configured may have no CoSMIC role yet.
     Treating them as `user` keeps the current session on `/me` contract
     consistent.

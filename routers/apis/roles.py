@@ -30,7 +30,10 @@ roles_v1_router: APIRouter = APIRouter(
 )
 
 
-def _role_name(value: str, field: str = "name") -> str:
+def _role_name(
+    value: str,
+    field: str = "name"
+) -> str:
     name: str = value.strip()
 
     if not name:
@@ -112,12 +115,12 @@ async def update_iam_role_v1(
     new_desc: str | None = None
 
     if "desc" in role_data:
-        # An explicit null clears the description. Keycloak stores it as an
+        # An explicit null clears the description. IAM stores it as an
         # empty string, which is equivalent for display purposes.
         new_desc = (
             str(role_data["desc"])
-            if role_data["desc"] is not None
-            else ""
+            if   (role_data["desc"] is not None)
+            else ("")
         )
 
     await iam.update_role(
@@ -131,8 +134,8 @@ async def update_iam_role_v1(
         "updated": {
             "name": (
                 new_name
-                if new_name is not None
-                else role_name
+                if   (new_name is not None)
+                else (role_name)
             )
         }
     }

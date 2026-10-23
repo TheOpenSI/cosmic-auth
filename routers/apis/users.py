@@ -56,7 +56,7 @@ async def update_iam_user_v1(
     session:    SessionDependency,
     iam:        IAMProviderDependency
 ) -> Any:
-    """Push a user update to the IAM provider (the local DB is synced by `cosmic-db`)."""
+    """Push a user update to the IAM provider (synced with our db)."""
     user_db: Users | None = session.get(
         entity=Users,
         ident=user_id
@@ -139,13 +139,13 @@ async def update_iam_user_v1(
         subject=identity.sub,
         email=(
             str(user_data["email"])
-            if "email" in user_data
-            else None
+            if   ("email" in user_data)
+            else (None)
         ),
         name=(
             str(user_data["name"])
-            if "name" in user_data
-            else None
+            if   ("name" in user_data)
+            else (None)
         ),
         role=role_name,
         role_desc=role_desc,
@@ -171,7 +171,7 @@ async def delete_iam_user_v1(
     session:    SessionDependency,
     iam:        IAMProviderDependency
 ) -> Any:
-    """Delete the IAM-backed user (the local row is removed by `cosmic-db`)."""
+    """Delete the IAM-backed user (also removed in our db)."""
     user_db: Users | None = session.get(
         entity=Users,
         ident=user_id
@@ -187,8 +187,8 @@ async def delete_iam_user_v1(
         )
     ).first()
 
-    # A legacy/local-only user has nothing to remove in the IAM. `cosmic-db`
-    # still clears the fallback row so admins can clean it up.
+    # A legacy/local-only user has nothing to remove in the IAM. However, our db
+    # still clears it so admins can clean it up
     if identity is not None:
         await iam.delete_user(subject=identity.sub)
 
@@ -198,8 +198,8 @@ async def delete_iam_user_v1(
             "user_id": str(user_db.id),
             "iam_user_id":  (
                 identity.sub
-                if identity is not None
-                else None
+                if   (identity is not None)
+                else (None)
             )
         }
     }

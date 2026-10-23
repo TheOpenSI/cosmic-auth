@@ -113,7 +113,7 @@
 		{
 			"clientId": "cosmic-auth-service",
 			"name": "CoSMIC Auth Service Account",
-			"description": "Service account used by cosmic-auth to manage users and roles through the Keycloak Admin REST API.",
+			"description": "Service account used by `cosmic-auth` to manage users and roles through the Keycloak Admin REST API.",
 			"enabled": true,
 			"publicClient": false,
 			"clientAuthenticatorType": "client-secret",

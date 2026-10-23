@@ -156,9 +156,10 @@ def _admin_error(
         fallback=fallback
     )
 
-    # The service account is our own infrastructure credential. A 401/403 from
-    # Keycloak means the deployment is misconfigured, not that the caller sent
-    # bad credentials, so surface it as a server-side failure.
+    # NOTE:
+    # The service account is our own infrastructure credential. A 401/403 response
+    # from Keycloak means the deployment is misconfigured, not that the caller
+    # sent bad credentials. Therefore, we can surface it as a server-side failure.
     if status_code in (
         status.HTTP_401_UNAUTHORIZED,
         status.HTTP_403_FORBIDDEN
@@ -169,7 +170,7 @@ def _admin_error(
     return HTTPException(
         status_code=status_code,
         detail={
-            "status": _status_label(status_code),
+            "status": _status_label(status_code=status_code),
             "message": message
         }
     )
@@ -183,14 +184,17 @@ def _name_parts(name: str) -> tuple[str, str]:
     )
 
     if not parts:
-        return ("", "")
+        return (
+            "",
+            ""
+        )
 
     return (
         parts[0],
         (
             parts[1]
-            if len(parts) > 1
-            else ""
+            if   (len(parts) > 1)
+            else ("")
         )
     )
 
@@ -198,8 +202,8 @@ def _name_parts(name: str) -> tuple[str, str]:
 def _role_key(name: Any) -> str:
     return (
         str(name).strip().lower()
-        if name is not None
-        else ""
+        if   (name is not None)
+        else ("")
     )
 
 
@@ -211,12 +215,22 @@ def _access_token_claims(tokens: dict[str, Any]) -> dict[str, Any]:
     ID token/user info payload does not always include that claim, so merge it in
     before normalising the CoSMIC claims.
     """
-    access_token: str | None = tokens.get("access_token")
+    access_token: str | None = tokens.get(
+        "access_token",
+        None
+    )
 
     if not isinstance(access_token, str):
         return {}
 
     try:
+        # NOTE:
+        # This might looks a bit confusing but it's basically extract part of the
+        # fully RS256-encoded JWT signature that is relevant to the specific user
+        # data received from brokered IdPs. Then, we decoded it to perform
+        # pre-merge actions according to the general explanation above. Have a
+        # play around the online JWT Debugger for better understand the logic
+        # down below.
         (
             _,
             payload,
@@ -330,7 +344,10 @@ class KeycloakIAM(IAMProvider):
             }
         )
         tokens["userinfo"] = _merge_access_token_claims(
-            user_info=tokens.get("userinfo") or {},
+            user_info=tokens.get(
+                "userinfo",
+                {}
+            ),
             tokens=tokens
         )
 
@@ -396,7 +413,7 @@ class KeycloakIAM(IAMProvider):
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={
-                    "status": _status_label(status.HTTP_500_INTERNAL_SERVER_ERROR),
+                    "status": _status_label(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR),
                     "message": "Keycloak service account secret is not configured."
                 }
             )
@@ -418,16 +435,23 @@ class KeycloakIAM(IAMProvider):
 
         payload: Any = response.json()
         token: Any = (
-            payload.get("access_token")
-            if isinstance(payload, dict)
-            else None
+            payload.get(
+                "access_token",
+                None
+            )
+            if   (isinstance(payload, dict))
+            else (None)
         )
 
-        if not isinstance(token, str) or not token:
+        if (
+            not isinstance(token, str)
+            or
+            not token
+        ):
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={
-                    "status": _status_label(status.HTTP_500_INTERNAL_SERVER_ERROR),
+                    "status": _status_label(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR),
                     "message": "Keycloak did not return a service-account access token."
                 }
             )
@@ -445,7 +469,7 @@ class KeycloakIAM(IAMProvider):
         subject:    str
     ) -> dict[str, Any] | None:
         response: HTTPXResponse = await client.get(
-            url=_keycloak_admin_url(f"/users/{quote(subject, safe='')}"),
+            url=_keycloak_admin_url(path=f"/users/{quote(string=subject, safe='')}"),
             headers=self._admin_headers(token=token)
         )
 
@@ -462,8 +486,8 @@ class KeycloakIAM(IAMProvider):
 
         return (
             payload
-            if isinstance(payload, dict)
-            else None
+            if   (isinstance(payload, dict))
+            else (None)
         )
 
     async def _admin_find_users_by_email(
@@ -473,7 +497,7 @@ class KeycloakIAM(IAMProvider):
         email:  str
     ) -> list[dict[str, Any]]:
         response: HTTPXResponse = await client.get(
-            url=_keycloak_admin_url("/users"),
+            url=_keycloak_admin_url(path="/users"),
             headers=self._admin_headers(token=token),
             params={
                 "email": email,
@@ -491,8 +515,8 @@ class KeycloakIAM(IAMProvider):
 
         return (
             payload
-            if isinstance(payload, list)
-            else []
+            if   (isinstance(payload, list))
+            else ([])
         )
 
     async def _admin_get_role(
@@ -502,7 +526,7 @@ class KeycloakIAM(IAMProvider):
         name:   str
     ) -> dict[str, Any] | None:
         response: HTTPXResponse = await client.get(
-            url=_keycloak_admin_url(f"/roles/{quote(name, safe='')}"),
+            url=_keycloak_admin_url(path=f"/roles/{quote(string=name, safe='')}"),
             headers=self._admin_headers(token=token)
         )
 
@@ -519,8 +543,8 @@ class KeycloakIAM(IAMProvider):
 
         return (
             payload
-            if isinstance(payload, dict)
-            else None
+            if   (isinstance(payload, dict))
+            else (None)
         )
 
     async def _admin_ensure_role(
@@ -530,7 +554,7 @@ class KeycloakIAM(IAMProvider):
         name:   str,
         desc:   str | None = None
     ) -> dict[str, Any]:
-        """Return the realm role, creating/synchronising it when needed."""
+        """Return the realm role and creating/synchronising it when needed."""
         role: dict[str, Any] | None = await self._admin_get_role(
             client=client,
             token=token,
@@ -539,7 +563,7 @@ class KeycloakIAM(IAMProvider):
 
         if role is None:
             response: HTTPXResponse = await client.post(
-                url=_keycloak_admin_url("/roles"),
+                url=_keycloak_admin_url(path="/roles"),
                 headers=self._admin_headers(token=token),
                 json={
                     "name":         name,
@@ -576,11 +600,16 @@ class KeycloakIAM(IAMProvider):
             role.get("description") != desc
         ):
             response = await client.put(
-                url=_keycloak_admin_url(f"/roles/{quote(name, safe='')}"),
+                url=_keycloak_admin_url(path=f"/roles/{quote(string=name, safe='')}"),
                 headers=self._admin_headers(token=token),
                 json={
-                    "name":         str(role.get("name", name)),
-                    "description":  desc
+                    "name": str(
+                        role.get(
+                            "name",
+                            name
+                        )
+                    ),
+                    "description": desc
                 }
             )
 
@@ -606,9 +635,7 @@ class KeycloakIAM(IAMProvider):
         managed_roles:  Collection[str]
     ) -> None:
         response: HTTPXResponse = await client.get(
-            url=_keycloak_admin_url(
-                f"/users/{quote(subject, safe='')}/role-mappings/realm"
-            ),
+            url=_keycloak_admin_url(path=f"/users/{quote(string=subject, safe='')}/role-mappings/realm"),
             headers=self._admin_headers(token=token)
         )
 
@@ -621,18 +648,28 @@ class KeycloakIAM(IAMProvider):
         payload: Any = response.json()
         mappings: list[dict[str, Any]] = (
             payload
-            if isinstance(payload, list)
-            else []
+            if   (isinstance(payload, list))
+            else ([])
         )
 
         managed_keys: set[str] = {
-            _role_key(managed_role)
+            _role_key(name=managed_role)
             for managed_role in managed_roles
-            if _role_key(managed_role)
+            if _role_key(name=managed_role)
         }
-        target_key: str = _role_key(role.get("name", ""))
+        target_key: str = _role_key(
+            name=role.get(
+                "name",
+                ""
+            )
+        )
         current_keys: set[str] = {
-            _role_key(mapping.get("name"))
+            _role_key(
+                name=mapping.get(
+                    "name",
+                    None
+                )
+            )
             for mapping in mappings
         }
 
@@ -640,18 +677,26 @@ class KeycloakIAM(IAMProvider):
             mapping
             for mapping in mappings
             if (
-                _role_key(mapping.get("name")) in managed_keys
+                _role_key(
+                    name=mapping.get(
+                        "name",
+                        None
+                    )
+                ) in managed_keys
                 and
-                _role_key(mapping.get("name")) != target_key
+                _role_key(
+                    name=mapping.get(
+                        "name",
+                        None
+                    )
+                ) != target_key
             )
         ]
 
         if to_remove:
             response = await client.request(
                 method="DELETE",
-                url=_keycloak_admin_url(
-                    f"/users/{quote(subject, safe='')}/role-mappings/realm"
-                ),
+                url=_keycloak_admin_url(path=f"/users/{quote(string=subject, safe='')}/role-mappings/realm"),
                 headers=self._admin_headers(token=token),
                 json=to_remove
             )
@@ -664,9 +709,7 @@ class KeycloakIAM(IAMProvider):
 
         if target_key not in current_keys:
             response = await client.post(
-                url=_keycloak_admin_url(
-                    f"/users/{quote(subject, safe='')}/role-mappings/realm"
-                ),
+                url=_keycloak_admin_url(path=f"/users/{quote(string=subject, safe='')}/role-mappings/realm"),
                 headers=self._admin_headers(token=token),
                 json=[role]
             )
@@ -709,8 +752,11 @@ class KeycloakIAM(IAMProvider):
 
             if name is not None:
                 first_name: str
-                last_name: str
-                first_name, last_name = _name_parts(name=name)
+                last_name:  str
+                (
+                    first_name,
+                    last_name
+                ) = _name_parts(name=name)
 
                 if not first_name:
                     raise HTTPException(
@@ -776,9 +822,7 @@ class KeycloakIAM(IAMProvider):
 
             if user_payload:
                 response: HTTPXResponse = await client.put(
-                    url=_keycloak_admin_url(
-                        f"/users/{quote(subject, safe='')}"
-                    ),
+                    url=_keycloak_admin_url(path=f"/users/{quote(string=subject, safe='')}"),
                     headers=self._admin_headers(token=token),
                     json=user_payload
                 )
@@ -808,9 +852,7 @@ class KeycloakIAM(IAMProvider):
         async with AsyncClient(timeout=_KEYCLOAK_ADMIN_TIMEOUT) as client:
             token: str = await self._admin_token(client=client)
             response: HTTPXResponse = await client.delete(
-                url=_keycloak_admin_url(
-                    f"/users/{quote(subject, safe='')}"
-                ),
+                url=_keycloak_admin_url(path=f"/users/{quote(string=subject, safe='')}"),
                 headers=self._admin_headers(token=token)
             )
 
@@ -885,19 +927,17 @@ class KeycloakIAM(IAMProvider):
 
             target_name: str = (
                 name
-                if name is not None
-                else str(current_role.get("name", effective_name))
+                if   (name is not None)
+                else (str(current_role.get("name", effective_name)))
             )
             target_desc: str | None = (
                 desc
-                if desc is not None
-                else current_role.get("description")
+                if   (desc is not None)
+                else (current_role.get("description", None))
             )
 
             response: HTTPXResponse = await client.put(
-                url=_keycloak_admin_url(
-                    f"/roles/{quote(effective_name, safe='')}"
-                ),
+                url=_keycloak_admin_url(path=f"/roles/{quote(string=effective_name, safe='')}"),
                 headers=self._admin_headers(token=token),
                 json={
                     "name":         target_name,
@@ -921,9 +961,7 @@ class KeycloakIAM(IAMProvider):
         async with AsyncClient(timeout=_KEYCLOAK_ADMIN_TIMEOUT) as client:
             token: str = await self._admin_token(client=client)
             response: HTTPXResponse = await client.delete(
-                url=_keycloak_admin_url(
-                    f"/roles/{quote(name, safe='')}"
-                ),
+                url=_keycloak_admin_url(path=f"/roles/{quote(string=name, safe='')}"),
                 headers=self._admin_headers(token=token)
             )
 

@@ -10,6 +10,9 @@ from starlette.middleware.sessions import SessionMiddleware
 
 ### Internal modules ###
 from .configs import (
+    ALLOWED_HEADERS,
+    ALLOWED_METHODS,
+    ALLOWED_ORIGINS,
     AUTH_PUBLIC_URL,
     FRONTEND_URL,
     SESSION_OAUTH_COOKIE,
@@ -55,14 +58,9 @@ app: FastAPI = FastAPI(
 app.add_middleware(
     middleware_class=CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[str(FRONTEND_URL)],
-    allow_methods=[
-        "POST",
-        "PATCH",
-        "DELETE",
-        "GET"
-    ],
-    allow_headers=["*"],
+    allow_origins=list(ALLOWED_ORIGINS),
+    allow_methods=list(ALLOWED_METHODS),
+    allow_headers=list(ALLOWED_HEADERS),
     max_age=600
 )
 

@@ -94,8 +94,8 @@ class IAMProvider(ABC):
         """
         Update an IAM-backed user.
 
-        The IAM is the source of truth, so every field is pushed here before the
-        local database mirror is written. ``managed_roles`` lists the role names
+        The IAM is the source of truth, so every field is pushed here before our
+        db is written as safe fallback. ``managed_roles`` lists the role names
         this platform owns; only those role mappings are replaced.
         """
 
@@ -112,7 +112,7 @@ class IAMProvider(ABC):
         name: str,
         desc: str | None = None
     ) -> None:
-        """Ensure a role exists in the IAM, creating it when necessary."""
+        """Ensure a role exists in the IAM and also creating it when necessary."""
 
     @abstractmethod
     async def update_role(
