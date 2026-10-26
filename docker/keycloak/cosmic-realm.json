@@ -22,6 +22,28 @@
 		"ssl": "false"
 
 	},
+	"defaultRole": {
+		"id": "0c26d59e-fe71-48df-8079-20745b2a8ef4",
+		"name": "default-roles-cosmic",
+		"description": "${role_default-roles}",
+		"composite": true,
+		"composites": {
+			"realm": [
+				"offline_access",
+				"uma_authorization",
+				"user"
+			],
+			"client": {
+				"account": [
+					"manage-account",
+					"manage-account-links",
+					"view-profile"
+				]
+			}
+		},
+		"clientRole": false,
+		"containerId": "cosmic"
+	},
 	"roles": {
 		"realm": [
 			{ "name": "admin" },
@@ -87,6 +109,20 @@
 			"standardFlowEnabled": true,
 			"directAccessGrantsEnabled": false,
 			"protocol": "openid-connect"
+		},
+		{
+			"clientId": "cosmic-auth-service",
+			"name": "CoSMIC Auth Service Account",
+			"description": "Service account used by `cosmic-auth` to manage users and roles through the Keycloak Admin REST API.",
+			"enabled": true,
+			"publicClient": false,
+			"clientAuthenticatorType": "client-secret",
+			"secret": "${KEYCLOAK_SERVICE_ACCOUNT_CLIENT_SECRET}",
+			"serviceAccountsEnabled": true,
+			"standardFlowEnabled": false,
+			"implicitFlowEnabled": false,
+			"directAccessGrantsEnabled": false,
+			"protocol": "openid-connect"
 		}
 	],
 	"users": [
@@ -105,6 +141,20 @@
 				}
 			],
 			"realmRoles": ["admin"]
+		},
+		{
+			"username": "service-account-cosmic-auth-service",
+			"enabled": true,
+			"serviceAccountClientId": "cosmic-auth-service",
+			"clientRoles": {
+				"realm-management": [
+					"manage-users",
+					"view-users",
+					"query-users",
+					"manage-realm",
+					"view-realm"
+				]
+			}
 		}
 	]
 }

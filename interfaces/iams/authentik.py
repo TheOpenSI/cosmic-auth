@@ -13,7 +13,10 @@ from fastapi.responses import RedirectResponse
 
 
 ### Type hints ###
-from collections.abc import Mapping
+from collections.abc import (
+    Collection,
+    Mapping
+)
 from typing import (
     Any,
     ClassVar,
@@ -72,6 +75,51 @@ class AuthentikIAM(IAMProvider):
     async def revoke(
         self,
         refresh_token: str
+    ) -> None:
+        raise NotImplementedError(_NOT_IMPLEMENTED)
+
+    @override
+    async def update_user(
+        self,
+        subject: str,
+        *,
+        email:           str | None = None,
+        name:            str | None = None,
+        role:            str | None = None,
+        role_desc:       str | None = None,
+        managed_roles:   Collection[str] = ()
+    ) -> None:
+        raise NotImplementedError(_NOT_IMPLEMENTED)
+
+    @override
+    async def delete_user(
+        self,
+        subject: str
+    ) -> None:
+        raise NotImplementedError(_NOT_IMPLEMENTED)
+
+    @override
+    async def create_role(
+        self,
+        name: str,
+        desc: str | None = None
+    ) -> None:
+        raise NotImplementedError(_NOT_IMPLEMENTED)
+
+    @override
+    async def update_role(
+        self,
+        current_name:   str,
+        *,
+        name:           str | None = None,
+        desc:           str | None = None
+    ) -> None:
+        raise NotImplementedError(_NOT_IMPLEMENTED)
+
+    @override
+    async def delete_role(
+        self,
+        name: str
     ) -> None:
         raise NotImplementedError(_NOT_IMPLEMENTED)
 

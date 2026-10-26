@@ -33,6 +33,33 @@ def get_auth_env() -> dict[str, str | None]:
     )
 
 
+def read_secret(name: str) -> str | None:
+    """
+    Read a value from `docker/secrets/<name>.txt`.
+
+    The Keycloak service-account secret is stored next to the other Keycloak
+    secrets already used by this micro-service. Keeping the file as the fallback
+    means a native or Docker checkout works without duplicating the secret in
+    `cosmic_auth.env`, while the env variable can still override it.
+    """
+    secret_file: Path = Path(__file__).resolve().parent.parent.joinpath(
+        "docker",
+        "secrets",
+        f"{name}.txt"
+    )
+
+    if not secret_file.is_file():
+        return None
+
+    value: str = secret_file.read_text(encoding="utf-8").strip()
+
+    return (
+        value
+        or
+        None
+    )
+
+
 cosmic_db_configs:      dict[str, str | None] = get_db_env()
 cosmic_auth_configs:    dict[str, str | None] = get_auth_env()
 
@@ -123,10 +150,45 @@ KEYCLOAK_CLIENT_SECRET: str | None = cosmic_auth_configs.get(
     "KEYCLOAK_CLIENT_SECRET",
     None
 )
+# Dedicated confidential client used for Keycloak Admin REST calls. It is
+# defined in `docker/keycloak/cosmic-realm.json` with a service account carrying
+# the `realm-management` roles it needs (`manage-users`, `view-users`,
+# `query-users`, `manage-realm`, `view-realm`).
+KEYCLOAK_SERVICE_ACCOUNT_CLIENT_ID: str | None = cosmic_auth_configs.get(
+    "KEYCLOAK_SERVICE_ACCOUNT_CLIENT_ID",
+    "cosmic-auth-service"
+)
+KEYCLOAK_SERVICE_ACCOUNT_CLIENT_SECRET: str | None = (
+    cosmic_auth_configs.get(
+        "KEYCLOAK_SERVICE_ACCOUNT_CLIENT_SECRET",
+        None
+    )
+    or
+    read_secret("keycloak_service_account_client_secret")
+)
 
 
 ### IAM provider ###
 IAM_PROVIDER: str | None = cosmic_auth_configs.get(
     "IAM_PROVIDER",
     "keycloak"
+)
+
+
+### Other configs ###
+SYSTEM_ROLES: tuple[str, ...] = (
+    "admin",
+    "user"
+)
+ALLOWED_ORIGINS: tuple[str, ...] = (
+    str(FRONTEND_URL),
+)
+ALLOWED_METHODS: tuple[str, ...] = (
+    "GET",
+    "POST",
+    "PATCH",
+    "DELETE"
+)
+ALLOWED_HEADERS: tuple[str, ...] = (
+    "*",
 )

@@ -20,7 +20,9 @@ cosmic-auth/
 │   ├── iams/authentik.py   # Authentik adapter (backed by Authlib) supplied through FastAPI DI
 │   └── idps/               # IdP implementations (brokered within Keycloak except certain circumstances)
 ├── routers/                # HTTP surface
-│   ├── apis/auth.py        # API endpoints (`/api/v1/auth/*`)
+│   ├── apis/auth.py        # Auth endpoints (`/api/v1/auth/*`)
+│   ├── apis/users.py       # IAM user API (`/api/v1/users/*`)
+│   ├── apis/roles.py       # IAM role API (`/api/v1/roles/*`)
 │   └── regulars/           # Regular endpoints (`/health`, `/jwks.json`)
 ├── utils/                  # Helper functions and shared utility scripts
 ├── bins/                   # Helper scripts, 3rd vendor binaries, etc
@@ -155,7 +157,7 @@ Then, copy the following files from the `examples/` directory to the following l
 - Generate the RS256 session keypair used to sign the CoSMIC session cookie using either `.\bins\setup.ps1` (Windows) or `./bins/setup.sh` (Linux/macOS).
 
 3. **Keycloak service**:
-- `examples/keycloak_*.example.txt` &rarr; `docker/secrets/keycloak_*.txt` (contains Keycloak admin credentials, the confidential client secret, the seeded test user, and the Google/Microsoft client credentials brokered by Keycloak).
+- `examples/keycloak_*.example.txt` &rarr; `docker/secrets/keycloak_*.txt` (contains Keycloak admin credentials, the confidential client secret, the service-account client secret, the seeded test user, and the Google/Microsoft client credentials brokered by Keycloak).
 
 > [!TIP]
 > Before finalising these files, review and adjust default values (Keep default setting if you're unsure about whether or not to modify it):
@@ -307,7 +309,7 @@ After running `.\bins\setup.ps1` (Windows) or `./bins/setup.sh` (Linux/MacOS), t
 
 - `cores/cosmic_auth.env` (Keycloak, Authlib session, RS256 session-key settings and the `IAM_PROVIDER` selection used by the auth service)
 - `cores/cosmic_cfg.env` (connection settings for the shared PostgreSQL database — `DB_USER`/`DB_PASSWORD`/`DB_NAME` are reconciled from the database owner's `.env` on every run)
-- `docker/secrets/keycloak_*.txt` (Keycloak admin credentials, the confidential client secret, the seeded test user and the Google/Microsoft broker credentials)
+- `docker/secrets/keycloak_*.txt` (Keycloak admin credentials, the confidential client secret, the service-account client secret, the seeded test user and the Google/Microsoft broker credentials)
 - `docker/secrets/cosmic_private_session.pem` & `docker/secrets/cosmic_public_session.pem` (the RS256 key-pair that signs the CoSMIC session cookie)
 
 Open `cores/cosmic_auth.env` and replace the defaults below:

@@ -10,6 +10,9 @@ from starlette.middleware.sessions import SessionMiddleware
 
 ### Internal modules ###
 from .configs import (
+    ALLOWED_HEADERS,
+    ALLOWED_METHODS,
+    ALLOWED_ORIGINS,
     AUTH_PUBLIC_URL,
     FRONTEND_URL,
     SESSION_OAUTH_COOKIE,
@@ -20,6 +23,8 @@ from ..utils.keys import (
     public_key
 )
 from ..routers.apis.auth import auth_v1_router
+from ..routers.apis.roles import roles_v1_router
+from ..routers.apis.users import users_v1_router
 from ..routers.regulars.health import health_router
 from ..routers.regulars.jwks import jwks_router
 
@@ -53,12 +58,9 @@ app: FastAPI = FastAPI(
 app.add_middleware(
     middleware_class=CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[str(FRONTEND_URL)],
-    allow_methods=[
-        "POST",
-        "GET"
-    ],
-    allow_headers=["*"],
+    allow_origins=list(ALLOWED_ORIGINS),
+    allow_methods=list(ALLOWED_METHODS),
+    allow_headers=list(ALLOWED_HEADERS),
     max_age=600
 )
 
@@ -80,3 +82,5 @@ app.include_router(router=jwks_router)
 
 # API endpoints (V1)
 app.include_router(router=auth_v1_router)
+app.include_router(router=users_v1_router)
+app.include_router(router=roles_v1_router)
