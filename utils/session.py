@@ -29,8 +29,7 @@ from ..cores.configs import (
     SESSION_COOKIE_NAME,
     SESSION_ISSUER,
     SESSION_MAX_AGE,
-    SESSION_OAUTH_COOKIE,
-    SESSION_REFRESH_TOKEN_MAX_AGE
+    SESSION_OAUTH_COOKIE
 )
 from .keys import (
     key_id,
@@ -43,6 +42,7 @@ from ..models.datas.claims import NormalisedClaims
 def issue_session_token(
     claims:         NormalisedClaims,
     user_id:        UUID7,
+    refresh_exp:    int,
     refresh_token:  str | None = None
 ) -> str:
     """
@@ -63,6 +63,7 @@ def issue_session_token(
         "provider":      claims.provider,
         "user_id":       str(user_id),
         "refresh_token": refresh_token,
+        "refresh_exp":   refresh_exp,
         "iat":           now,
         "exp":           now + timedelta(seconds=int(SESSION_MAX_AGE))
     }
@@ -84,30 +85,28 @@ def set_session_cookie(
     response:       Response,
     claims:         NormalisedClaims,
     user_id:        UUID7,
-    refresh_token:  str | None = None,
-    max_age:        int | None = None
+    refresh_exp:    int,
+    refresh_token:  str | None = None
 ) -> None:
     """
     Set the CoSMIC session cookie.
 
-    ``max_age`` should be the IdP refresh-token lifespan so the (expired) JWT is
-    still delivered to `/refresh` endpoint. It defaults to the configured refresh
-    window.
+    ``refresh_exp`` is the absolute end (epoch seconds) of the refresh window,
+    fixed at login. The cookie only lives for what remains of that window so the
+    (expired) JWT is still delivered to `/refresh` endpoint until then.
     """
+    remaining: int = refresh_exp - int(datetime.now(tz=timezone.utc).timestamp())
     token: str = issue_session_token(
         claims=claims,
         user_id=user_id,
+        refresh_exp=refresh_exp,
         refresh_token=refresh_token
     )
 
     response.set_cookie(
         key=str(SESSION_COOKIE_NAME),
         value=token,
-        max_age=(
-            max_age
-            or
-            int(SESSION_REFRESH_TOKEN_MAX_AGE)
-        ),
+        max_age=max(remaining, 0),
         path="/",
         secure=str(AUTH_PUBLIC_URL).startswith("https://"),
         httponly=True,
