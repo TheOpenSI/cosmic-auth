@@ -72,8 +72,8 @@
 		},
 		{
 			"alias": "microsoft",
-			"displayName": "Microsoft OIDC",
-			"providerId": "microsoft",
+			"displayName": "Microsoft",
+			"providerId": "oidc",
 			"enabled": true,
 			"trustEmail": true,
 			"storeToken": false,
@@ -84,8 +84,16 @@
 			"config": {
 				"clientId": "${KEYCLOAK_MICROSOFT_CLIENT_ID}",
 				"clientSecret": "${KEYCLOAK_MICROSOFT_CLIENT_SECRET}",
-				"tenantId": "${KEYCLOAK_MICROSOFT_TENANT_ID}",
-				"defaultScope": "openid profile email",
+				"clientAuthMethod": "client_secret_post",
+				"authorizationUrl": "https://login.microsoftonline.com/${KEYCLOAK_MICROSOFT_TENANT_ID}/oauth2/v2.0/authorize",
+				"tokenUrl": "https://login.microsoftonline.com/${KEYCLOAK_MICROSOFT_TENANT_ID}/oauth2/v2.0/token",
+				"logoutUrl": "https://login.microsoftonline.com/${KEYCLOAK_MICROSOFT_TENANT_ID}/oauth2/v2.0/logout",
+				"issuer": "https://login.microsoftonline.com/${KEYCLOAK_MICROSOFT_TENANT_ID}/v2.0",
+				"jwksUrl": "https://login.microsoftonline.com/${KEYCLOAK_MICROSOFT_TENANT_ID}/discovery/v2.0/keys",
+				"useJwksUrl": "true",
+				"validateSignature": "true",
+				"disableUserInfo": "true",
+				"defaultScope": "openid profile email User.Read",
 				"syncMode": "IMPORT"
 			}
 		}
