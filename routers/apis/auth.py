@@ -15,6 +15,11 @@ from fastapi.responses import (
     RedirectResponse
 )
 
+from datetime import (
+    datetime,
+    timezone
+)
+
 
 ### Type hints ###
 from typing import Any
@@ -23,7 +28,7 @@ from ...cores.tags import APITag
 
 
 ### Internal modules ###
-from ...cores.configs import FRONTEND_URL
+from ...cores.configs import FRONTEND_URL, SESSION_REFRESH_TOKEN_MAX_AGE
 from ...utils.session import (
     clear_auth_cookies,
     read_current_session,
@@ -216,18 +221,20 @@ async def callback_provider(
             status_code=status.HTTP_302_FOUND
         )
 
+        now: int = int(datetime.now(tz=timezone.utc).timestamp())
+        refresh_max_age: int = min(
+            tokens.get("refresh_expires_in", None) or int(SESSION_REFRESH_TOKEN_MAX_AGE),
+            int(SESSION_REFRESH_TOKEN_MAX_AGE)
+        )
         # CoSMIC session is the single source of truth for `/me`, `/refresh` &
         # `/logout` endpoints. The IAM refresh token travels inside the JWT token
         set_session_cookie(
             response=response,
             claims=claims,
             user_id=user.id,
+            refresh_exp=now + refresh_max_age,
             refresh_token=tokens.get(
                 "refresh_token",
-                None
-            ),
-            max_age=tokens.get(
-                "refresh_expires_in",
                 None
             )
         )
@@ -313,6 +320,28 @@ async def refresh(
         if   (isinstance(stored_refresh_token, str))
         else (None)
     )
+    now: int = int(datetime.now(tz=timezone.utc).timestamp())
+    stored_refresh_exp: Any = old_session_token.get(
+        "refresh_exp",
+        None
+    )
+    stored_iat: Any = old_session_token.get(
+        "iat",
+        None
+    )
+
+    if isinstance(stored_refresh_exp, int):
+        refresh_exp: int = stored_refresh_exp
+
+    elif isinstance(stored_iat, int):
+        refresh_exp = stored_iat + int(SESSION_REFRESH_TOKEN_MAX_AGE)
+
+    else:
+        return unauthorised_cleared()
+
+    if refresh_exp - now <= 0:
+        return unauthorised_cleared(detail="Refresh window expired")
+
 
     if not refresh_token:
         raise HTTPException(
@@ -403,11 +432,8 @@ async def refresh(
             response=response,
             claims=claims,
             user_id=user_id,
-            refresh_token=new_refresh,
-            max_age=tokens.get(
-                "refresh_expires_in",
-                None
-            )
+            refresh_exp=refresh_exp,
+            refresh_token=new_refresh
         )
 
         return response

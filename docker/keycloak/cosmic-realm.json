@@ -85,7 +85,7 @@
 				"clientId": "${KEYCLOAK_MICROSOFT_CLIENT_ID}",
 				"clientSecret": "${KEYCLOAK_MICROSOFT_CLIENT_SECRET}",
 				"tenantId": "${KEYCLOAK_MICROSOFT_TENANT_ID}",
-				"defaultScope": "openid profile email",
+				"defaultScope": "openid profile email User.Read",
 				"syncMode": "IMPORT"
 			}
 		}
