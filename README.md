@@ -407,3 +407,8 @@ SESSION_MAX_AGE=900
 SESSION_REFRESH_TOKEN_MAX_AGE=86400
 SESSION_OAUTH_COOKIE=cosmic_oauth_session
 ```
+
+---
+# Conventions
+
+This repository follows the shared [EditorConfig conventions](docs/conventions/EDITORCONFIG.md). See the [live documentation](https://github.com/TheOpenSI/cosmic-docs/blob/main/docs/06-development/editorconfig.md) for the rules and editor setup.
