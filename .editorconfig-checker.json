@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/editorconfig-checker/editorconfig-checker/v4.0.2/.editorconfig-checker.schema.json",
+  "Exclude": [
+    "^CONTRIBUTING$",
+    "^LICENSE$",
+    "(^|/)\\.venv/"
+  ],
+  "Disable": {
+    "IndentSize": true
+  }
+}

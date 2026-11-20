@@ -24,9 +24,9 @@ Write-Host "==> Checking and preparing environment/configuration files..."
 # Helper function to conditionally copy files safely
 function Invoke-SafeCopy {
     param(
-		$Source,
-		$Destination
-	)
+        $Source,
+        $Destination
+    )
 
     if (Test-Path $Destination) {
         Write-Host "Skipped: [$Destination] already exists (left untouched)."
@@ -63,9 +63,9 @@ foreach ($file in (Get-ChildItem -Path "examples" -Filter "keycloak_*.example.tx
 # database it talks to. Point it elsewhere with the `-DbEnvFile` parameter.
 $dbConfigPath = "cores\cosmic_cfg.env"
 $dbEnvKeys = @(
-	"DB_USER",
-	"DB_PASSWORD",
-	"DB_NAME"
+    "DB_USER",
+    "DB_PASSWORD",
+    "DB_NAME"
 )
 
 $dbEnvValues = @{}
